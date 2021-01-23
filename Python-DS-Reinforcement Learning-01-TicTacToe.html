@@ -1,0 +1,453 @@
+<html lang = 'en' class =''>
+
+  <head>
+
+    <meta charset = 'UTF-8' />
+    <title>Tic Tac Toe</title>
+    <link rel = 'stylesheet' type = 'text/css' href = 'sweetalert/sweetalert.css'/>
+
+    <style>
+     *{
+        box-sizing: border-box;
+        padding: 0;
+        margin:  0;
+      }.container {
+        display:           flex;
+        background:      #fff;
+        align-content:   center;
+        justify-content: center;
+        flex-direction:  column;
+        min-width:        400px;
+        min-height:       400px;
+        border-radius:       5%;
+        margin:            auto;
+      }
+
+      table {
+        border-collapse: collapse;
+        margin:              auto;
+      }
+
+      td {
+        background-color:  #8293ee;
+        border:    5px solid white;
+        font-size:              80px;
+        color:                #fff;
+        border-radius:            5%;
+        height:                125px;
+        width:                 125px;
+        font-family: 'Comic sans MS';
+      }
+
+      body {  
+        display:    flex;
+        background-image: url('Python-DS-Reinforcement Learning-01-TicTacToe.jpg');
+        height:     100%;
+        width:      100%;
+        overflow: hidden;
+      }
+
+      button {
+        background-color: #008CBA;
+        border: none;
+        color: white;
+        padding: 15px 32px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 16px;
+      }
+
+      canvas {
+        background-color: rgba(255, 255, 255, 0.0);
+		    margin:   auto;
+        position: absolute;
+        top:      0;
+        bottom:   0;
+        left:     0;
+        right:  390;
+      }
+    </style>
+
+  </head>
+
+  <body>
+    <script src = 'sweetalert/sweetalert2.all.min.js'>           </script>
+    <script src = 'Tic-Tac-Toe-States.js'>                       </script>
+    <script src = 'Tic-Tac-Toe-q-table-o.js'>                    </script>
+    <script src = 'Tic-Tac-Toe-q-table-x.js'>                    </script>
+    <script src = 'chart-v2.8.0.js/Chart.min.js'>                </script>
+    <script src = 'chart-v2.8.0.js/chartjs-plugin-datalabels.js'></script>
+
+    <div id = 'chart_id' style = 'width: 15%;'>
+        <canvas id = 'canvas'></canvas>
+    </div>
+    <div class = 'container'>
+      <table id = 'my_table'>
+        <tr>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+        </tr>
+        <tr>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+        </tr>
+        <tr>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+          <td align = 'center' onclick = 'play(this)'>  </td>
+        </tr>
+      </table>
+    </div>
+
+    <script >
+      let state      = [ [0, 0, 0],  [0, 0, 0],  [0, 0, 0] ];
+      let turn       = 'player_x';
+      let reward     =         -1;
+      let first_play =          0;
+      let ai_memory  =          0;
+	    let x_win      =          0;
+      let o_win      =          0;
+      let draw       =          0;
+
+      function start(){
+        if (first_play === 0){
+          Swal.fire
+          ({
+            title: 'Who Starts?',
+            showCancelButton:       true,
+            cancelButtonText:  'Machine',
+            cancelButtonColor:    '#d33',
+            confirmButtonText: ' Human ',
+            confirmButtonColor:   '#000',
+          }) 
+          .then((result) => {
+            if (result.value) {
+              first_play = 1;
+            }else{
+              first_play = 2;
+              ai_memory  = 1;
+              ai();
+            }
+          })
+        }
+        return
+      }
+
+      start();
+
+      // Max Value Index
+      function argMax(array) {
+        for (let i = 0; i < array.length; i ++ ){
+          max_value_id =  0;
+          if (array[i] - array[i] != 0){
+            array[i] = -10000000;
+          }
+        }
+        max_value = Math.max.apply(null, array)
+        for (let i = 0; i < array.length; i ++ ){
+          if (array[i] === max_value){
+            max_value_id = i;
+            break; 
+          }
+        }
+        return max_value_id
+      }
+
+      function ai(){
+        if (first_play === 0 || first_play === 1){
+          return
+        }
+
+        let state_id = 0;
+        let ai_play  = 0;
+        let action   = 0;
+        let X        = 0;
+        let Y        = 0; 
+
+        let fx = [ 0, 0, 0, 1, 1, 1, 2, 2, 2];
+        let fy = [ 0, 1, 2, 0, 1, 2, 0, 1, 2];
+        let g_string = game_state();
+
+        for(let i = 0; i < states_complete.length; i++){
+          if(g_string === states_complete[i][1]){
+            state_id = states_complete[i][0];
+          }
+        }
+
+        if(ai_memory === 1){
+          action   = argMax(qtx[state_id]);
+        }else{
+          action   = argMax(qto[state_id]);
+        }
+
+        if (state_id === 0){
+          ai_play = Math.floor(Math.random()*fx.length)
+          X = fx[ai_play];
+          Y = fy[ai_play]; 
+        }else{
+          X = Math.floor(action/3);
+          Y = action % 3;
+        }
+        setTimeout(function onTick() {
+          document.getElementById('my_table').rows[X].cells[Y].click()
+        }, 400);
+       return
+      }
+
+      function play(cell){
+        if (cell.innerHTML === 'x' || cell.innerHTML === 'o'){
+          return
+        }
+        if (turn === 'player_x'){
+          cell.style.color = 'black';
+          cell.innerHTML   = 'x';
+          state[cell.parentNode.rowIndex][cell.cellIndex] = 1;
+          current_state    = game_state();
+          reward           = game_reward_x(current_state); 
+          turn             = 'player_o';
+          if (first_play == 1 && reward < 100) {
+            first_play = 2;
+            ai();
+          }else{
+            first_play = 1;
+          }
+          if(reward === 100){
+		        x_win = x_win + 1;
+            barchart.data.datasets[0].data[0] = x_win;
+            barchart.update();
+            if (state[0][0] === 1 && state[0][1] === 1 && state[0][2] === 1){
+              document.getElementById('my_table').rows[0].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[0].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[0].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[1][0] === 1 && state[1][1] === 1 && state[1][2] === 1){
+              document.getElementById('my_table').rows[1].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[2][0] === 1 && state[2][1] === 1 && state[2][2] === 1){
+              document.getElementById('my_table').rows[2].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[0][0] === 1 && state[1][0] === 1 && state[2][0] === 1){
+              document.getElementById('my_table').rows[0].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[0].style.backgroundColor = 'red';
+            }
+            if (state[0][1] === 1 && state[1][1] === 1 && state[2][1] === 1){
+              document.getElementById('my_table').rows[0].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[1].style.backgroundColor = 'red';
+            }
+            if (state[0][2] === 1 && state[1][2] === 1 && state[2][2] === 1){
+              document.getElementById('my_table').rows[0].cells[2].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[2].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[0][0] === 1 && state[1][1] === 1 && state[2][2] === 1){
+              document.getElementById('my_table').rows[0].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[0][2] === 1 && state[1][1] === 1 && state[2][0] === 1){
+              document.getElementById('my_table').rows[0].cells[2].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[0].style.backgroundColor = 'red';
+            }
+            Swal.fire({
+              type:  'success',
+              title: 'X Wins!', 
+            });
+            setTimeout(function onTick() {game_start()}, 1500);
+          }
+          if (reward === 5){
+		        draw = draw + 1;
+            barchart.data.datasets[0].data[2] = draw;
+            barchart.update();
+            Swal.fire({
+              type:  'success',
+              title: 'Draw Game!', 
+            });
+            setTimeout(function onTick() {game_start()}, 1500);
+          }
+        }else if(turn === 'player_o'){ 
+          cell.style.color = 'yellow';
+          cell.innerHTML   = 'o';
+          state[cell.parentNode.rowIndex][cell.cellIndex] = 2;
+          current_state    = game_state();
+          reward           = game_reward_o(current_state);
+          turn             = 'player_x';
+          if (first_play == 1  && reward < 100) {
+            first_play = 2;
+            ai();
+          }else{
+            first_play = 1;  
+          }
+          if(reward === 100){
+		        o_win = o_win + 1;
+            barchart.data.datasets[0].data[1] = o_win;
+            barchart.update();
+            if (state[0][0] === 2 && state[0][1] === 2 && state[0][2] === 2){
+              document.getElementById('my_table').rows[0].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[0].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[0].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[1][0] === 2 && state[1][1] === 2 && state[1][2] === 2){
+              document.getElementById('my_table').rows[1].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[2][0] === 2 && state[2][1] === 2 && state[2][2] === 2){
+              document.getElementById('my_table').rows[2].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[0][0] === 2 && state[1][0] === 2 && state[2][0] === 2){
+              document.getElementById('my_table').rows[0].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[0].style.backgroundColor = 'red';
+            }
+            if (state[0][1] === 2 && state[1][1] === 2 && state[2][1] === 2){
+              document.getElementById('my_table').rows[0].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[1].style.backgroundColor = 'red';
+            }
+            if (state[0][2] === 2 && state[1][2] === 2 && state[2][2] === 2){
+              document.getElementById('my_table').rows[0].cells[2].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[2].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[0][0] === 2 && state[1][1] === 2 && state[2][2] === 2){
+              document.getElementById('my_table').rows[0].cells[0].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[2].style.backgroundColor = 'red';
+            }
+            if (state[0][2] === 2 && state[1][1] === 2 && state[2][0] === 2){
+              document.getElementById('my_table').rows[0].cells[2].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = 'red';
+              document.getElementById('my_table').rows[2].cells[0].style.backgroundColor = 'red';
+            }
+            Swal.fire({
+              type:  'success',
+              title: 'O Wins!', 
+            });
+            setTimeout(function onTick() {game_start()}, 1500);
+          }
+          if (reward === 5){
+		        draw = draw + 1;
+            barchart.data.datasets[0].data[2] = draw;
+            barchart.update();
+            Swal.fire({
+              type:  'success',
+              title: 'Draw Game!', 
+            });
+            setTimeout(function onTick() {game_start()}, 1500);
+          }
+        }
+      } 
+
+      function game_state(){
+        state_string = 'T';
+        for(let i = 0; i < 3; i++){
+          for(let j = 0; j < 3; j++){
+            state_string = state_string + state[i][j];
+          }
+        }
+        return state_string
+      }
+
+      function game_reward_x(string){
+        for(let i = 0; i <states_complete.length; i++){
+          if(string === states_complete[i][1]){
+            reward = states_complete[i][12];
+          }
+        }
+        return reward
+      }
+
+      function game_reward_o(string){
+        for(let i = 0; i < states_complete.length; i++){
+          if(string === states_complete[i][1]){
+            reward = states_complete[i][13];
+          }
+        }
+        return reward
+      }
+
+      function game_start(){
+        reward = -1;
+        turn   = 'player_x'
+        for(let i = 0; i < 3; i++){
+          for(let j = 0; j < 3; j++){
+            document.getElementById('my_table').rows[i].cells[j].innerHTML = '';
+            state[i][j] = 0;
+          }
+        }
+        if (ai_memory === 1){
+          first_play = 2;
+          ai();
+        }else{
+          first_play = 1;
+        }
+        document.getElementById('my_table').rows[0].cells[0].style.backgroundColor = '#8293ee';
+        document.getElementById('my_table').rows[0].cells[1].style.backgroundColor = '#8293ee';
+        document.getElementById('my_table').rows[0].cells[2].style.backgroundColor = '#8293ee';
+        document.getElementById('my_table').rows[1].cells[0].style.backgroundColor = '#8293ee';
+        document.getElementById('my_table').rows[1].cells[1].style.backgroundColor = '#8293ee';
+        document.getElementById('my_table').rows[1].cells[2].style.backgroundColor = '#8293ee';
+        document.getElementById('my_table').rows[2].cells[0].style.backgroundColor = '#8293ee';
+        document.getElementById('my_table').rows[2].cells[1].style.backgroundColor = '#8293ee';
+        document.getElementById('my_table').rows[2].cells[2].style.backgroundColor = '#8293ee';
+      }
+
+		var dataset = {
+			labels: ['Player X', 'Player O', 'Draw'],
+			datasets: [{
+				label:           'Games',
+				backgroundColor: 'rgba(255, 99, 132, 0.1)',
+				borderColor:     'rgba(255, 99, 132, 1.0)',
+				borderWidth:     1,
+				data:            [x_win, o_win, draw],
+      }]
+		};
+
+    window.onload = function() {
+			var ctx = document.getElementById('canvas').getContext('2d');
+			barchart = new Chart(ctx, {
+				type: 'bar',
+				data: dataset,
+				options: {
+          plugins: {
+            datalabels: {
+              color: 'white',
+              font: {
+                weight: 'bold',
+                size: 12,
+              }
+            }
+          },
+					responsive: true,
+					legend: {
+						display: false,
+					},
+					title: {
+						display: false,
+					},
+          scales: {
+          xAxes: [ { gridLines: { display: false }, display: true, ticks: {fontColor: 'white', fontSize: 12}} ],
+          yAxes: [ { gridLines: { display: false }, display: false} ]
+          }
+				}
+			});
+
+		};
+
+    </script>
+
+  </body>
+
+</html>
