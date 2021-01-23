@@ -348,13 +348,7 @@ def q_learning(states_table, states_random, episodes = 150000, alpha = 0.2, gamm
     js_python(q_table_x, q_table_o)
     return q_table_x, q_table_o
 
-# Train AI
-q_table_x = pd.read_csv('Tic-Tac-Toe-q-table-x.txt',  sep = '\t', header = None)
-q_table_o = pd.read_csv('Tic-Tac-Toe-q-table-o.txt',  sep = '\t', header = None)
-
-q_table_x = q_table_x.values.tolist()
-q_table_o = q_table_o.values.tolist()
-    
+# Train AI   
 q_table_x, q_table_o = q_learning(states_table, states_random, episodes = 75000, save = 100, check = 1000, alpha = 0.2, gamma = 0.9)
 
 # Test AI
