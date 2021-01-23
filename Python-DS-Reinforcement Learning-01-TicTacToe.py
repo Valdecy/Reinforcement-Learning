@@ -357,3 +357,6 @@ ai_check(states_table, states_random, q_table_x, q_table_o)
 # View Specific State
 state = 101
 gs = game_string(states_table[state][1], view_board = True)
+
+# Export to js
+js_python(q_table_x, q_table_o)
