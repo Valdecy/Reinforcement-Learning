@@ -1,0 +1,1661 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GridWorld Race</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page: #12241E;
+    --board: #1D3A32;
+    --board-edge: #2C4C43;
+    --chalk: #ECEEE4;
+    --chalk-dim: #A3B8AE;
+    --chalk-faint: rgba(236, 238, 228, 0.16);
+    --human: #8FC6EC;
+    --machine: #F2D06B;
+    --pos: #A9DEB2;
+    --neg: #EF9D93;
+    --font: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 700px at 30% -10%, rgba(64, 110, 96, 0.35), transparent 70%),
+      var(--page);
+    color: var(--chalk);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 36px 24px 48px; }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px 40px;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 760;
+    font-variation-settings: "wdth" 78, "opsz" 96;
+    letter-spacing: -0.015em;
+    line-height: 0.95;
+  }
+  .lede { margin: 12px 0 0; max-width: 48ch; color: var(--chalk-dim); font-size: 1.05rem; }
+
+  .score { display: grid; grid-template-columns: repeat(3, auto); gap: 0 32px; margin: 0; }
+  .score div { display: flex; flex-direction: column-reverse; }
+  .score dt { color: var(--chalk-dim); font-size: 0.9rem; }
+  .score dd { margin: 0; font-size: 2.4rem; font-weight: 700; line-height: 1; font-variation-settings: "wdth" 80; }
+  .score .you dd { color: var(--human); }
+  .score .bot dd { color: var(--machine); }
+
+  /* ---------- layout ---------- */
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 560px) minmax(260px, 1fr);
+    gap: 48px;
+    align-items: start;
+    margin-top: 32px;
+  }
+
+  /* ---------- board ---------- */
+  .board-panel {
+    position: relative;
+    border-radius: 22px;
+    padding: clamp(14px, 3.2vw, 30px);
+    background:
+      radial-gradient(110% 80% at 18% 8%, rgba(236, 238, 228, 0.07), transparent 60%),
+      radial-gradient(80% 60% at 88% 92%, rgba(236, 238, 228, 0.05), transparent 60%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+      var(--board);
+    box-shadow:
+      inset 0 0 90px rgba(0, 0, 0, 0.38),
+      0 0 0 1px var(--board-edge),
+      0 30px 60px -30px rgba(0, 0, 0, 0.6);
+  }
+
+  .board { position: relative; width: 100%; }
+  .board.editing { touch-action: none; cursor: crosshair; }
+  .board > svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+  .gridlines path { fill: none; stroke: var(--chalk); stroke-width: 2.2; opacity: 0.32; }
+  .walls rect { fill: url(#hatch); stroke: var(--chalk); stroke-width: 2.5; stroke-opacity: 0.55; }
+  .icon path { stroke-width: 4.5; stroke-linejoin: round; stroke-linecap: round; }
+  .icon.goal path { stroke: var(--pos); fill: rgba(169, 222, 178, 0.18); }
+  .icon.fire path { stroke: var(--neg); fill: rgba(239, 157, 147, 0.18); }
+  .icon text { font: 700 21px var(--font); text-anchor: middle; }
+  .icon.goal text { fill: var(--pos); }
+  .icon.fire text { fill: var(--neg); }
+
+  .qlayer polygon { stroke: var(--board); stroke-width: 1.5; }
+  .qlayer .arrow { stroke: var(--chalk); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none; opacity: 0.9; }
+  .qlayer text { font: 620 12.5px var(--font); text-anchor: middle; dominant-baseline: middle; }
+  .qlayer { transition: opacity 0.2s ease; }
+  .qlayer.off { opacity: 0; }
+
+  .startmark circle { fill: none; stroke: var(--chalk); stroke-width: 3; stroke-dasharray: 8 7; opacity: 0.7; }
+
+  .trail { fill: none; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; opacity: 0.55; }
+  .trail.human { stroke: var(--human); stroke-dasharray: 2 11; }
+  .trail.machine { stroke: var(--machine); stroke-dasharray: 14 9; }
+
+  .token { transition: transform 0.16s cubic-bezier(.4, .1, .3, 1); }
+  .token circle.body { stroke: var(--board); stroke-width: 4; }
+  .token.human circle.body { fill: var(--human); }
+  .token.machine circle.body { fill: var(--machine); }
+  .token circle.eye { fill: var(--board); }
+  .token.out { opacity: 0.45; }
+
+  .cells { position: absolute; inset: 0; display: grid; }
+  .cell {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: default;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cell.pickable, .cell.reachable { cursor: pointer; }
+  .editing .cell { cursor: crosshair; }
+  @media (hover: hover) {
+    .cell.pickable:hover { box-shadow: inset 0 0 0 2px var(--chalk); background: rgba(236, 238, 228, 0.06); }
+    .cell.reachable:hover { box-shadow: inset 0 0 0 2px var(--human); }
+    .editing .cell:hover { box-shadow: inset 0 0 0 2px var(--machine); }
+  }
+  .cell:focus-visible { outline: 2px dashed var(--chalk); outline-offset: -3px; }
+
+  /* ---------- dock under the board ---------- */
+  .dock {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 20px;
+    margin-top: clamp(14px, 2.6vw, 22px);
+    padding-top: clamp(12px, 2.4vw, 18px);
+    border-top: 1px solid var(--chalk-faint);
+    min-height: 74px;
+  }
+  .dock[hidden] { display: none; }
+  .prompt { margin: 0; color: var(--chalk-dim); max-width: 32ch; }
+
+  .race { display: grid; grid-template-columns: repeat(3, auto); gap: 0 26px; margin: 0; }
+  .race div { display: flex; flex-direction: column-reverse; }
+  .race dt { color: var(--chalk-dim); font-size: 0.86rem; }
+  .race dd { margin: 0; font-size: 1.7rem; font-weight: 700; line-height: 1.05; font-variation-settings: "wdth" 82; }
+  .race .you dd { color: var(--human); }
+  .race .bot dd { color: var(--machine); }
+
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(3, 46px);
+    grid-template-rows: repeat(2, 38px);
+    gap: 6px;
+  }
+  .pad button {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 12px;
+    background: rgba(236, 238, 228, 0.04);
+    color: var(--chalk);
+    cursor: pointer;
+  }
+  .pad button:hover { border-color: var(--human); }
+  .pad button:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  .pad button:disabled { opacity: 0.35; cursor: default; border-color: var(--chalk-faint); }
+  .pad svg { width: 18px; height: 18px; }
+  .pad svg path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .pad .up { grid-column: 2; grid-row: 1; }
+  .pad .left { grid-column: 1; grid-row: 2; }
+  .pad .down { grid-column: 2; grid-row: 2; }
+  .pad .right { grid-column: 3; grid-row: 2; }
+
+  .result h2 {
+    margin: 0;
+    font-size: clamp(1.3rem, 3.4vw, 1.5rem);
+    font-weight: 740;
+    font-variation-settings: "wdth" 82, "opsz" 96;
+    line-height: 1.1;
+  }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .progress { flex: 1 1 200px; min-width: 0; }
+  .progress-head { display: flex; justify-content: space-between; gap: 12px; color: var(--chalk-dim); font-size: 0.92rem; }
+  .bar { height: 8px; margin-top: 8px; border-radius: 999px; background: rgba(236, 238, 228, 0.1); overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--pos); }
+
+  .tools { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+  .size { display: flex; align-items: center; gap: 8px; color: var(--chalk-dim); font-size: 0.92rem; }
+
+  .btn {
+    padding: 0.6rem 1.1rem;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { border-color: rgba(236, 238, 228, 0.45); }
+  .btn.primary { border-color: var(--chalk); background: var(--chalk); color: var(--page); }
+  .btn.primary:hover { background: #fff; }
+  .btn:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* ---------- side panel ---------- */
+  aside { min-width: 0; }
+  .status h2 { margin: 0; font-size: 1.85rem; font-weight: 720; font-variation-settings: "wdth" 85; line-height: 1.1; }
+  .status p { margin: 8px 0 0; color: var(--chalk-dim); }
+  .status p.error { color: var(--neg); }
+  .tag { font-weight: 700; }
+  .tag.human { color: var(--human); }
+  .tag.machine { color: var(--machine); }
+
+  .group { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--chalk-faint); }
+  .group-title { margin: 0 0 12px; font-weight: 620; font-size: 1.05rem; }
+  .help { margin: 8px 0 0; max-width: 50ch; color: var(--chalk-dim); font-size: 0.92rem; }
+
+  .compass-wrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .compass {
+    display: grid;
+    grid-template-columns: repeat(3, 74px);
+    grid-template-rows: repeat(3, 40px);
+    gap: 4px;
+  }
+  .compass .q {
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    font-weight: 640;
+    font-size: 0.98rem;
+    background: rgba(236, 238, 228, 0.04);
+  }
+  .compass .q.best { box-shadow: inset 0 0 0 2px currentColor; }
+  .compass .center { color: var(--chalk-dim); font-size: 0.86rem; background: transparent; }
+  .compass .q-up { grid-column: 2; grid-row: 1; }
+  .compass .q-left { grid-column: 1; grid-row: 2; }
+  .compass .center { grid-column: 2; grid-row: 2; }
+  .compass .q-right { grid-column: 3; grid-row: 2; }
+  .compass .q-down { grid-column: 2; grid-row: 3; }
+  .compass-note { margin: 0; color: var(--chalk-dim); font-size: 0.92rem; max-width: 22ch; }
+
+  .segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 22px;
+  }
+  .segmented input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .segmented label {
+    padding: 0.42rem 0.95rem;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--chalk-dim);
+  }
+  .segmented input:checked + label { background: var(--chalk); color: var(--page); }
+  .segmented input:focus-visible + label { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  .segmented.small label { padding: 0.32rem 0.75rem; font-size: 0.92rem; }
+
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+
+  select, input[type="number"] {
+    padding: 0.45rem 0.7rem;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 12px;
+    background: var(--page);
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 600;
+    min-width: 0;
+  }
+  select {
+    padding-right: 2rem;
+    background: var(--page) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23A3B8AE' stroke-width='2'/></svg>") no-repeat right 0.75rem center;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  select:focus-visible, input[type="number"]:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  input[type="number"] { width: 100%; }
+
+  .fields { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+  .fields.rewards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field label { color: var(--chalk-dim); font-size: 0.86rem; }
+  .field[hidden] { display: none; }
+
+  .facts { margin: 14px 0 0; padding: 0; list-style: none; color: var(--chalk-dim); font-size: 0.92rem; max-width: 52ch; }
+  .facts li + li { margin-top: 4px; }
+
+  .chart { margin: 16px 0 0; }
+  .chart svg { display: block; width: 100%; height: 86px; overflow: visible; }
+  .chart .axis { stroke: var(--chalk-faint); stroke-width: 1; }
+  .chart .eps-line { stroke: var(--chalk-dim); stroke-width: 1; stroke-dasharray: 3 4; }
+  .chart .curve { fill: none; stroke: var(--pos); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .area { fill: rgba(169, 222, 178, 0.12); }
+  .chart text { fill: var(--chalk-dim); font: 500 11px var(--font); }
+  .chart figcaption { margin-top: 6px; color: var(--chalk-dim); font-size: 0.86rem; }
+
+  .switch { display: inline-flex; align-items: center; gap: 12px; font-weight: 620; font-size: 1.05rem; cursor: pointer; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .switch .track {
+    position: relative;
+    flex: none;
+    width: 46px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1.5px solid var(--chalk-faint);
+    background: rgba(236, 238, 228, 0.06);
+    transition: background 0.18s ease, border-color 0.18s ease;
+  }
+  .switch .track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: var(--chalk-dim);
+    transition: transform 0.18s ease, background 0.18s ease;
+  }
+  .switch input:checked + .track { background: rgba(169, 222, 178, 0.22); border-color: var(--pos); }
+  .switch input:checked + .track::after { transform: translateX(20px); background: var(--pos); }
+  .switch input:focus-visible + .track { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+
+  .slider-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .slider-head label { font-weight: 620; font-size: 1.05rem; }
+  .slider-head output { font-weight: 650; }
+  input[type="range"] { width: 100%; margin: 12px 0 0; accent-color: var(--machine); }
+
+  .row-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .note { margin: 0; max-width: 52ch; color: var(--chalk-dim); font-size: 0.86rem; }
+  .note + .note { margin-top: 8px; }
+
+  @media (max-width: 880px) {
+    main { grid-template-columns: 1fr; gap: 30px; }
+    .board-panel { max-width: 560px; width: 100%; margin: 0 auto; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 22px 16px 36px; }
+    header { gap: 18px; }
+    .score { gap: 0 24px; }
+    .score dd { font-size: 2rem; }
+    .race { gap: 0 18px; }
+    .race dd { font-size: 1.45rem; }
+    .pad { grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 44px); }
+    .compass { grid-template-columns: repeat(3, 66px); }
+    .fields, .fields.rewards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <filter id="chalk" x="-15%" y="-15%" width="130%" height="130%">
+    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="4" result="warp"/>
+    <feDisplacementMap in="SourceGraphic" in2="warp" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="rough"/>
+    <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="2" seed="11" result="grain"/>
+    <feColorMatrix in="grain" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -3.4 2.45" result="mask"/>
+    <feComposite in="rough" in2="mask" operator="in"/>
+  </filter>
+</svg>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>GridWorld</h1>
+      <p class="lede">Draw a grid, train an agent with one of seven reinforcement-learning methods, then race it to the treasure.</p>
+    </div>
+    <dl class="score" aria-label="Score">
+      <div class="you"><dt>You</dt><dd id="score-human">0</dd></div>
+      <div class="bot"><dt>Machine</dt><dd id="score-machine">0</dd></div>
+      <div><dt>Draws</dt><dd id="score-draw">0</dd></div>
+    </dl>
+  </header>
+
+  <main>
+    <section class="board-panel" aria-label="Game board">
+      <div class="board" id="board">
+        <svg id="art" aria-hidden="true">
+          <defs>
+            <pattern id="hatch" width="14" height="14" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+              <line x1="0" y1="0" x2="0" y2="14" stroke="#ECEEE4" stroke-width="3.2" stroke-opacity="0.32"/>
+            </pattern>
+          </defs>
+          <g class="gridlines" id="gridlines" filter="url(#chalk)"></g>
+          <g class="walls" id="walls" filter="url(#chalk)"></g>
+          <g class="qlayer off" id="qlayer"></g>
+          <g id="icons" filter="url(#chalk)"></g>
+          <g class="startmark" id="startmark"></g>
+          <g id="trails" filter="url(#chalk)"></g>
+          <g id="tokens"></g>
+        </svg>
+        <div class="cells" id="cells" role="group" aria-label="Grid squares"></div>
+      </div>
+
+      <div class="dock" id="dock-edit" hidden>
+        <div class="tools">
+          <div class="segmented small" role="radiogroup" aria-label="Paint">
+            <input type="radio" name="tool" id="tool-free" value="free" checked><label for="tool-free">Open</label>
+            <input type="radio" name="tool" id="tool-wall" value="wall"><label for="tool-wall">Wall</label>
+            <input type="radio" name="tool" id="tool-fire" value="fire"><label for="tool-fire">Fire</label>
+            <input type="radio" name="tool" id="tool-goal" value="goal"><label for="tool-goal">Treasure</label>
+          </div>
+          <div class="size">
+            <label for="rows">Rows</label><select id="rows"></select>
+            <label for="cols">Columns</label><select id="cols"></select>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="btn" type="button" id="clear-grid">Clear</button>
+          <button class="btn primary" type="button" id="done-edit">Train on this grid</button>
+        </div>
+      </div>
+
+      <div class="dock" id="dock-train" hidden>
+        <div class="progress">
+          <div class="progress-head"><span id="train-label">Training</span><span id="train-pct">0%</span></div>
+          <div class="bar"><span id="train-bar"></span></div>
+        </div>
+        <button class="btn" type="button" id="finish-now">Finish now</button>
+      </div>
+
+      <div class="dock" id="dock-choose" hidden>
+        <p class="prompt">Click an open square to start the race there.</p>
+        <button class="btn" type="button" id="random-start">Random start</button>
+      </div>
+
+      <div class="dock" id="dock-race" hidden>
+        <dl class="race">
+          <div class="you"><dt>Your steps</dt><dd id="steps-human">0</dd></div>
+          <div class="bot"><dt>Machine's steps</dt><dd id="steps-machine">0</dd></div>
+          <div><dt>Shortest path</dt><dd id="steps-best">0</dd></div>
+        </dl>
+        <div class="pad" role="group" aria-label="Move">
+          <button type="button" class="up" data-move="0" aria-label="Move up"><svg viewBox="0 0 20 20"><path d="M10 16V4M4 10l6-6 6 6"/></svg></button>
+          <button type="button" class="left" data-move="2" aria-label="Move left"><svg viewBox="0 0 20 20"><path d="M16 10H4M10 4l-6 6 6 6"/></svg></button>
+          <button type="button" class="down" data-move="1" aria-label="Move down"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10l6 6 6-6"/></svg></button>
+          <button type="button" class="right" data-move="3" aria-label="Move right"><svg viewBox="0 0 20 20"><path d="M4 10h12M10 4l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+
+      <div class="dock result" id="dock-over" hidden>
+        <h2 id="end-title">Draw</h2>
+        <div class="actions">
+          <button class="btn primary" type="button" id="again">Race again</button>
+          <button class="btn" type="button" id="new-start">New start square</button>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="status" aria-live="polite">
+        <h2 id="status-title">Training</h2>
+        <p id="status-text"></p>
+      </div>
+
+      <div class="group">
+        <p class="group-title" id="compass-title">Q-values</p>
+        <div class="compass-wrap">
+          <div class="compass" id="compass">
+            <div class="q q-up" data-a="0"></div>
+            <div class="q q-left" data-a="2"></div>
+            <div class="q center" id="compass-center"></div>
+            <div class="q q-right" data-a="3"></div>
+            <div class="q q-down" data-a="1"></div>
+          </div>
+          <p class="compass-note" id="compass-note"></p>
+        </div>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Grid</p>
+        <div class="segmented" role="radiogroup" aria-label="Grid">
+          <input type="radio" name="world" id="world-maze" value="maze"><label for="world-maze">Maze 10×10</label>
+          <input type="radio" name="world" id="world-classic" value="classic"><label for="world-classic">Classic 4×3</label>
+          <input type="radio" name="world" id="world-custom" value="custom"><label for="world-custom">My grid</label>
+        </div>
+        <div class="row">
+          <button class="btn" type="button" id="edit-grid">Edit grid</button>
+        </div>
+        <p class="help">Walls and edges block movement. The treasure and the fire end the episode.</p>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Training</p>
+        <div class="row">
+          <label for="method">Method</label>
+          <select id="method"></select>
+        </div>
+        <p class="help" id="method-info"></p>
+        <div class="fields">
+          <div class="field"><label for="p-alpha">α (step size)</label><input type="number" id="p-alpha" min="0.01" max="1" step="0.01"></div>
+          <div class="field"><label for="p-gamma">γ (discount)</label><input type="number" id="p-gamma" min="0" max="0.999" step="0.01"></div>
+          <div class="field" id="field-lambda"><label for="p-lambda">λ (trace)</label><input type="number" id="p-lambda" min="0" max="1" step="0.05"></div>
+          <div class="field"><label for="p-steps">Steps</label><input type="number" id="p-steps" min="1000" max="2000000" step="1000"></div>
+        </div>
+        <div class="fields rewards">
+          <div class="field"><label for="r-step">Step reward</label><input type="number" id="r-step" step="0.1"></div>
+          <div class="field"><label for="r-goal">Treasure</label><input type="number" id="r-goal" step="1"></div>
+          <div class="field"><label for="r-fire">Fire</label><input type="number" id="r-fire" step="1"></div>
+        </div>
+        <p class="help">ε falls from 1 to 0 over the first 60% of the steps. Each episode starts on a random open square. γ and the number of steps reset to suit each grid: long mazes need γ close to 1 so the treasure's value reaches the far squares.</p>
+        <figure class="chart" id="chart" aria-label="Training progress chart">
+          <svg id="chart-svg"></svg>
+          <figcaption>Share of open squares from which the greedy policy reaches the treasure, across training. The dashed line is where ε reaches 0.</figcaption>
+        </figure>
+        <ul class="facts">
+          <li id="fact-policy"></li>
+          <li id="fact-training"></li>
+        </ul>
+        <div class="row">
+          <button class="btn" type="button" id="retrain">Train again</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="switch">
+          <input type="checkbox" role="switch" id="show-q">
+          <span class="track" aria-hidden="true"></span>
+          <span>Show Q-values on the board</span>
+        </label>
+        <p class="help">Each open square splits into four triangles, one per action, tinted green for positive and red for negative Q(s, a). The chalk arrow is the action the agent takes there.</p>
+      </div>
+
+      <div class="group">
+        <div class="slider-head">
+          <label for="eps">Exploration in the race</label>
+          <output id="eps-out" for="eps">ε = 0.00</output>
+        </div>
+        <input type="range" id="eps" min="0" max="1" step="0.05" value="0">
+        <p class="help">Chance the machine ignores its Q-table and moves in a random direction, fire included. At 0, a fully trained agent can only be tied.</p>
+      </div>
+
+      <div class="group row-actions">
+        <button class="btn" type="button" id="new-race">New race</button>
+        <button class="btn" type="button" id="reset-score">Reset score</button>
+      </div>
+
+      <div class="group">
+        <p class="note">You and the machine move at the same time, one step per turn. First to a treasure wins; reaching it on the same turn is a draw.</p>
+        <p class="note">Arrow keys or WASD move you. You can also use the pad under the board or click a neighbouring square.</p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+// Tabular RL trainer for GridWorld. Shared by the page and the Node tests.
+// env: { n, types: ['free'|'goal'|'fire'|'wall'], open: [k], step(k, a) -> k }
+// cfg: { method, alpha, gamma, lambda, steps, rewards: { step, goal, fire }, rng }
+// ε falls linearly from 1 to 0 over the first EXPLORE_SHARE of the steps, then stays 0.
+// Episodes start on a random open square and stop at the treasure, the fire or after
+// EPISODE_CAP_PER_OPEN steps per open square. Monte Carlo uses exploring starts.
+const EXPLORE_SHARE = 0.6;
+const EPISODE_CAP_PER_OPEN = 2;
+
+function createTrainer(env, cfg) {
+  const A = 4;
+  const rnd = cfg.rng;
+  const QA = new Float64Array(env.n * A);
+  const QB = cfg.method === 'double' ? new Float64Array(env.n * A) : null;
+  for (const k of env.open) {
+    for (let a = 0; a < A; a++) {
+      QA[k * A + a] = rnd() / 100;
+      if (QB) QB[k * A + a] = rnd() / 100;
+    }
+  }
+  const usesTraces = cfg.method === 'sarsa-lambda' || cfg.method === 'q-lambda';
+  const E = usesTraces ? new Float64Array(env.n * A) : null;
+  let active = [];
+  const cap = Math.max(60, env.open.length * EPISODE_CAP_PER_OPEN);
+  let t = 0, s = 0, a = 0, epLen = 0, episodes = 0;
+  let buffer = [];
+
+  function value(k, b) { return QB ? (QA[k * A + b] + QB[k * A + b]) / 2 : QA[k * A + b]; }
+
+  function argmax(get, k) {
+    let best = -Infinity, ties = [];
+    for (let b = 0; b < A; b++) {
+      const v = get(k, b);
+      if (v > best + 1e-12) { best = v; ties = [b]; } else if (Math.abs(v - best) <= 1e-12) ties.push(b);
+    }
+    return ties.length === 1 ? ties[0] : ties[Math.floor(rnd() * ties.length)];
+  }
+  const fromA = function (k, b) { return QA[k * A + b]; };
+  const fromB = function (k, b) { return QB[k * A + b]; };
+
+  function epsilon() { return Math.max(0, 1 - t / (EXPLORE_SHARE * cfg.steps)); }
+  function choose(k) { return rnd() < epsilon() ? Math.floor(rnd() * A) : argmax(value, k); }
+  function isTerminal(k) { return env.types[k] === 'goal' || env.types[k] === 'fire'; }
+  function reward(k) {
+    const ty = env.types[k];
+    return ty === 'goal' ? cfg.rewards.goal : ty === 'fire' ? cfg.rewards.fire : cfg.rewards.step;
+  }
+  function maxRow(k) { return Math.max(QA[k * A], QA[k * A + 1], QA[k * A + 2], QA[k * A + 3]); }
+
+  function clearTraces() {
+    for (const i of active) E[i] = 0;
+    active = [];
+  }
+
+  function begin() {
+    s = env.open[Math.floor(rnd() * env.open.length)];
+    epLen = 0;
+    episodes++;
+    if (usesTraces) clearTraces();
+    buffer = [];
+    a = cfg.method === 'mc' ? Math.floor(rnd() * A) : choose(s);
+  }
+
+  function traceUpdate(delta, keep) {
+    const decay = cfg.gamma * cfg.lambda;
+    const next = [];
+    for (const i of active) {
+      QA[i] += cfg.alpha * delta * E[i];
+      if (keep) {
+        E[i] *= decay;
+        if (E[i] > 1e-6) next.push(i); else E[i] = 0;
+      } else {
+        E[i] = 0;
+      }
+    }
+    active = next;
+  }
+
+  function finishMonteCarlo() {
+    const first = new Map();
+    buffer.forEach(function (step, i) { if (!first.has(step.idx)) first.set(step.idx, i); });
+    let G = 0;
+    for (let i = buffer.length - 1; i >= 0; i--) {
+      G = buffer[i].r + cfg.gamma * G;
+      if (first.get(buffer[i].idx) === i) QA[buffer[i].idx] += cfg.alpha * (G - QA[buffer[i].idx]);
+    }
+  }
+
+  function stepOnce() {
+    const s2 = env.step(s, a);
+    const r = reward(s2);
+    const end = isTerminal(s2);
+    const idx = s * A + a;
+    let a2 = 0;
+    switch (cfg.method) {
+      case 'q':
+        QA[idx] += cfg.alpha * (r + (end ? 0 : cfg.gamma * maxRow(s2)) - QA[idx]);
+        if (!end) a2 = choose(s2);
+        break;
+      case 'sarsa':
+        if (!end) a2 = choose(s2);
+        QA[idx] += cfg.alpha * (r + (end ? 0 : cfg.gamma * QA[s2 * A + a2]) - QA[idx]);
+        break;
+      case 'expected': {
+        const eps = epsilon();
+        let expect = 0;
+        if (!end) {
+          const row = [QA[s2 * A], QA[s2 * A + 1], QA[s2 * A + 2], QA[s2 * A + 3]];
+          expect = (1 - eps) * Math.max.apply(null, row) + (eps / A) * (row[0] + row[1] + row[2] + row[3]);
+          a2 = choose(s2);
+        }
+        QA[idx] += cfg.alpha * (r + cfg.gamma * expect - QA[idx]);
+        break;
+      }
+      case 'double':
+        if (rnd() < 0.5) {
+          const target = end ? 0 : QB[s2 * A + argmax(fromA, s2)];
+          QA[idx] += cfg.alpha * (r + cfg.gamma * target - QA[idx]);
+        } else {
+          const target = end ? 0 : QA[s2 * A + argmax(fromB, s2)];
+          QB[idx] += cfg.alpha * (r + cfg.gamma * target - QB[idx]);
+        }
+        if (!end) a2 = choose(s2);
+        break;
+      case 'sarsa-lambda': {
+        if (!end) a2 = choose(s2);
+        const delta = r + (end ? 0 : cfg.gamma * QA[s2 * A + a2]) - QA[idx];
+        if (E[idx] === 0) active.push(idx);
+        E[idx] += 1;
+        traceUpdate(delta, !end);
+        break;
+      }
+      case 'q-lambda': {
+        let star = 0;
+        if (!end) {
+          a2 = choose(s2);
+          star = QA[s2 * A + a2] >= maxRow(s2) ? a2 : argmax(fromA, s2);
+        }
+        const delta = r + (end ? 0 : cfg.gamma * QA[s2 * A + star]) - QA[idx];
+        if (E[idx] === 0) active.push(idx);
+        E[idx] += 1;
+        traceUpdate(delta, !end && a2 === star);
+        break;
+      }
+      case 'mc':
+        buffer.push({ idx: idx, r: r });
+        if (!end) a2 = choose(s2);
+        break;
+      default:
+        throw new Error('unknown method ' + cfg.method);
+    }
+    t++;
+    epLen++;
+    if (end || epLen >= cap) {
+      if (cfg.method === 'mc') finishMonteCarlo();
+      begin();
+    } else {
+      s = s2;
+      a = a2;
+    }
+  }
+
+  begin();
+  return {
+    run: function (count) {
+      const stop = Math.min(cfg.steps, t + count);
+      while (t < stop) stepOnce();
+      return t >= cfg.steps;
+    },
+    value: value,
+    epsilon: epsilon,
+    progress: function () { return t / cfg.steps; },
+    episodes: function () { return episodes; }
+  };
+}
+
+(function () {
+  'use strict';
+
+  // ---------- constants ----------
+  const PRESETS = {
+    maze: { rows: 10, cols: 10, types: '0300030031030303030003030303020003000300033333333003000000000303333333030000000003333333300000000000' },
+    classic: { rows: 3, cols: 4, types: '000103020000' },
+    custom: { rows: 8, cols: 8, types: '0000000100000020003300000000000000003000002030000000000000000000' }
+  };
+  const METHODS = [
+    { key: 'q', name: 'Q-learning', info: 'Off-policy TD: each update uses the best next action, whatever the agent actually does next.' },
+    { key: 'sarsa', name: 'SARSA', info: 'On-policy TD: each update uses the action the agent actually takes next, exploration included.' },
+    { key: 'double', name: 'Double Q-learning', info: 'Two Q-tables: one picks the best next action, the other values it, which curbs over-estimation. The agent plays with their average.' },
+    { key: 'expected', name: 'Expected SARSA', info: 'Like SARSA, but uses the average value of the next actions under the ε-greedy policy instead of one sampled action.' },
+    { key: 'sarsa-lambda', name: 'SARSA(λ)', info: 'SARSA with eligibility traces: every reward also updates the recently visited squares, faded by γλ.' },
+    { key: 'q-lambda', name: 'Q(λ)', info: 'Watkins\' Q(λ): Q-learning with eligibility traces, which are cut whenever the agent explores.' },
+    { key: 'mc', name: 'Monte Carlo', info: 'Waits until the episode ends and learns from the full discounted return. Each episode opens with a random action (exploring starts).' }
+  ];
+  const CODE = { 0: 'free', 1: 'goal', 2: 'fire', 3: 'wall' };
+  const CODE_OF = { free: '0', goal: '1', fire: '2', wall: '3' };
+  const ACTIONS = ['up', 'down', 'left', 'right'];
+  const KEYS = { ArrowUp: 0, ArrowDown: 1, ArrowLeft: 2, ArrowRight: 3, w: 0, s: 1, a: 2, d: 3, W: 0, S: 1, A: 2, D: 3 };
+  const MAX_TURNS = 200;
+  const TRAIN_FRAMES = 75;
+  const SIZE_MIN = 3, SIZE_MAX = 12;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- persistence ----------
+  const STORE = 'gridworld-lab-v1';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        score: score, showQ: showQ, eps: raceEps, world: worldKey, custom: custom,
+        method: params.method, alpha: params.alpha, lambda: params.lambda, rewards: params.rewards
+      }));
+    } catch (e) { /* storage unavailable */ }
+  }
+
+  function validGrid(g) {
+    return g && Number.isInteger(g.rows) && Number.isInteger(g.cols) &&
+      g.rows >= SIZE_MIN && g.rows <= SIZE_MAX && g.cols >= SIZE_MIN && g.cols <= SIZE_MAX &&
+      typeof g.types === 'string' && g.types.length === g.rows * g.cols && /^[0-3]+$/.test(g.types);
+  }
+  function num(v, fallback, lo, hi) {
+    return typeof v === 'number' && isFinite(v) && v >= lo && v <= hi ? v : fallback;
+  }
+
+  const saved = load();
+  const score = Object.assign({ human: 0, machine: 0, draw: 0 }, saved.score || {});
+  let showQ = !!saved.showQ;
+  let raceEps = num(saved.eps, 0, 0, 1);
+  let worldKey = PRESETS[saved.world] ? saved.world : 'maze';
+  let custom = validGrid(saved.custom) ? saved.custom : Object.assign({}, PRESETS.custom);
+  const savedRewards = saved.rewards || {};
+  const params = {
+    method: METHODS.some(function (m) { return m.key === saved.method; }) ? saved.method : 'q',
+    alpha: num(saved.alpha, 0.2, 0.01, 1),
+    lambda: num(saved.lambda, 0.9, 0, 1),
+    gamma: 0.9,
+    steps: 15000,
+    rewards: {
+      step: num(savedRewards.step, -0.1, -1e6, 1e6),
+      goal: num(savedRewards.goal, 100, -1e6, 1e6),
+      fire: num(savedRewards.fire, -5, -1e6, 1e6)
+    }
+  };
+
+  // ---------- world ----------
+  let W = null;
+  let trainer = null;
+  let SCALE = null;
+
+  function gridOf(key) { return key === 'custom' ? custom : PRESETS[key]; }
+
+  function buildWorld(g) {
+    const w = { rows: g.rows, cols: g.cols, n: g.rows * g.cols, types: Array.from(g.types, function (ch) { return CODE[ch]; }) };
+    w.step = function (k, a) {
+      let r = Math.floor(k / w.cols), c = k % w.cols;
+      if (a === 0) r = Math.max(r - 1, 0);
+      else if (a === 1) r = Math.min(r + 1, w.rows - 1);
+      else if (a === 2) c = Math.max(c - 1, 0);
+      else c = Math.min(c + 1, w.cols - 1);
+      const nk = r * w.cols + c;
+      return w.types[nk] === 'wall' ? k : nk;
+    };
+    // distance to the nearest treasure through open squares
+    w.dist = new Array(w.n).fill(-1);
+    const queue = [];
+    w.types.forEach(function (t, k) { if (t === 'goal') { w.dist[k] = 0; queue.push(k); } });
+    while (queue.length) {
+      const k = queue.shift();
+      for (let p = 0; p < w.n; p++) {
+        if (w.types[p] !== 'free' || w.dist[p] !== -1) continue;
+        for (let a = 0; a < 4; a++) {
+          if (w.step(p, a) === k) { w.dist[p] = w.dist[k] + 1; queue.push(p); break; }
+        }
+      }
+    }
+    w.open = [];
+    for (let k = 0; k < w.n; k++) if (w.types[k] === 'free' && w.dist[k] > 0) w.open.push(k);
+    return w;
+  }
+
+  function recommend() {
+    let longest = 0;
+    W.open.forEach(function (k) { longest = Math.max(longest, W.dist[k]); });
+    params.gamma = longest <= 10 ? 0.9 : 0.99;
+    params.steps = Math.max(15000, Math.round(W.open.length * 4000 / 1000) * 1000);
+  }
+
+  function q(k, a) { return trainer ? trainer.value(k, a) : 0; }
+  function qRow(k) { return [q(k, 0), q(k, 1), q(k, 2), q(k, 3)]; }
+
+  function bestActions(row) {
+    const mx = Math.max.apply(null, row);
+    const out = [];
+    for (let a = 0; a < 4; a++) if (row[a] >= mx - 1e-12) out.push(a);
+    return out;
+  }
+
+  function policyCheck() {
+    let reached = 0, shortest = 0;
+    W.open.forEach(function (k0) {
+      let k = k0, n = 0;
+      while (W.types[k] === 'free' && n < 400) { k = W.step(k, bestActions(qRow(k))[0]); n++; }
+      if (W.types[k] === 'goal') { reached++; if (n === W.dist[k0]) shortest++; }
+    });
+    return { open: W.open.length, reached: reached, shortest: shortest };
+  }
+
+  function buildScale() {
+    let vmin = Infinity, vmax = -Infinity, nmax = 0;
+    W.open.forEach(function (k) {
+      const row = qRow(k);
+      const v = Math.max.apply(null, row);
+      if (v > 0) { vmin = Math.min(vmin, v); vmax = Math.max(vmax, v); }
+      row.forEach(function (x) { if (x < 0) nmax = Math.max(nmax, -x); });
+    });
+    return { lmin: Math.log(vmin), lmax: Math.log(vmax), nmax: nmax };
+  }
+
+  function tint(v) {
+    if (v > 0) {
+      const span = SCALE.lmax - SCALE.lmin;
+      const t = span > 0 ? Math.min(1, Math.max(0, (Math.log(v) - SCALE.lmin) / span)) : 1;
+      return { fill: 'rgba(169, 222, 178, ' + (0.08 + 0.5 * t).toFixed(3) + ')', text: 'var(--pos)' };
+    }
+    if (v < 0) {
+      const t = SCALE.nmax > 0 ? Math.sqrt(Math.min(1, -v / SCALE.nmax)) : 1;
+      return { fill: 'rgba(239, 157, 147, ' + (0.1 + 0.45 * t).toFixed(3) + ')', text: 'var(--neg)' };
+    }
+    return { fill: 'rgba(236, 238, 228, 0.04)', text: 'var(--chalk-dim)' };
+  }
+
+  function fmt(v) {
+    const a = Math.abs(v);
+    let s;
+    if (a === 0) s = '0';
+    else if (a >= 10) s = a.toFixed(1);
+    else if (a >= 1) s = a.toFixed(2);
+    else if (a >= 0.001) s = a.toPrecision(3);
+    else s = a.toExponential(1);
+    return (v < 0 ? '−' : '') + s.replace('-', '−');
+  }
+  // Compact form for the board triangles (at most four characters plus sign).
+  function fmtShort(v) {
+    const a = Math.abs(v);
+    const s = a >= 10 ? a.toFixed(0) : a >= 1 ? a.toFixed(1) : a.toFixed(2);
+    return (v < 0 && Number(s) !== 0 ? '−' : '') + s;
+  }
+  function reward(v) { return (v > 0 ? '+' : '') + String(v).replace('-', '−'); }
+  function methodOf(key) { return METHODS.filter(function (m) { return m.key === key; })[0]; }
+
+  // ---------- game state ----------
+  let phase = 'training';   // edit | training | choose | race | over
+  let startK = null;
+  let human = null, machine = null;
+  let turn = 0;
+  let busy = false;
+  let timer = null;
+  let frame = null;
+  let hoverK = null;
+  let lastMachine = null;
+  let best = 0;
+  let history = [];
+  let painting = false;
+  let tool = 'free';
+
+  function runner(k) { return { k: k, steps: 0, path: [k], fate: null }; }
+
+  // ---------- DOM ----------
+  const $ = function (id) { return document.getElementById(id); };
+  const art = $('art');
+  const board = $('board');
+  const cellsEl = $('cells');
+  const docks = { edit: $('dock-edit'), training: $('dock-train'), choose: $('dock-choose'), race: $('dock-race'), over: $('dock-over') };
+  let cellBtns = [];
+  let tokenEls = {};
+  let qEls = [];
+
+  function el(name, attrs, parent) {
+    const node = document.createElementNS(SVGNS, name);
+    for (const key in attrs) node.setAttribute(key, attrs[key]);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  function center(k) { return { x: (k % W.cols) * 100 + 50, y: Math.floor(k / W.cols) * 100 + 50 }; }
+
+  const STAR = (function () {
+    let d = '';
+    for (let i = 0; i < 10; i++) {
+      const r = i % 2 ? 10 : 24;
+      const t = -Math.PI / 2 + i * Math.PI / 5;
+      d += (i ? 'L' : 'M') + (50 + r * Math.cos(t)).toFixed(1) + ' ' + (44 + r * Math.sin(t)).toFixed(1);
+    }
+    return d + 'Z';
+  })();
+  const FLAME = 'M50 18C58 30 70 38 68 54C66 66 58 72 50 72C41 72 32 66 32 55C32 46 38 41 42 34C44 41 47 44 50 45C52 37 51 28 50 18Z';
+
+  function drawWorld() {
+    art.setAttribute('viewBox', '0 0 ' + W.cols * 100 + ' ' + W.rows * 100);
+    cellsEl.style.gridTemplateColumns = 'repeat(' + W.cols + ', 1fr)';
+    cellsEl.style.gridTemplateRows = 'repeat(' + W.rows + ', 1fr)';
+
+    const grid = $('gridlines');
+    grid.textContent = '';
+    let d = 'M2 2H' + (W.cols * 100 - 2) + 'V' + (W.rows * 100 - 2) + 'H2Z';
+    for (let c = 1; c < W.cols; c++) d += 'M' + c * 100 + ' 0V' + W.rows * 100;
+    for (let r = 1; r < W.rows; r++) d += 'M0 ' + r * 100 + 'H' + W.cols * 100;
+    el('path', { d: d }, grid);
+
+    cellsEl.textContent = '';
+    cellBtns = [];
+    for (let k = 0; k < W.n; k++) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'cell';
+      b.addEventListener('click', function () { onCell(k); });
+      b.addEventListener('pointerenter', function () { if (phase !== 'edit') { hoverK = k; renderCompass(); } });
+      b.addEventListener('focus', function () { if (phase !== 'edit') { hoverK = k; renderCompass(); } });
+      cellsEl.appendChild(b);
+      cellBtns.push(b);
+    }
+
+    const tokens = $('tokens');
+    tokens.textContent = '';
+    tokenEls = {};
+    ['machine', 'human'].forEach(function (who) {
+      const g = el('g', { class: 'token ' + who }, tokens);
+      el('circle', { class: 'body', cx: 0, cy: 0, r: 27 }, g);
+      el('circle', { class: 'eye', cx: who === 'human' ? -7 : 7, cy: -5, r: 4.4 }, g);
+      g.style.display = 'none';
+      tokenEls[who] = g;
+    });
+    drawTerrain();
+  }
+
+  function drawTerrain() {
+    const walls = $('walls');
+    walls.textContent = '';
+    const icons = $('icons');
+    icons.textContent = '';
+    for (let k = 0; k < W.n; k++) {
+      const t = W.types[k];
+      if (t === 'wall') {
+        el('rect', { x: (k % W.cols) * 100 + 3, y: Math.floor(k / W.cols) * 100 + 3, width: 94, height: 94, rx: 6 }, walls);
+      } else if (t === 'goal' || t === 'fire') {
+        const p = center(k);
+        const g = el('g', { class: 'icon ' + t, transform: 'translate(' + (p.x - 50) + ' ' + (p.y - 50) + ')' }, icons);
+        el('path', { d: t === 'goal' ? STAR : FLAME }, g);
+        const label = el('text', { x: 50, y: 92 }, g);
+        label.textContent = reward(t === 'goal' ? params.rewards.goal : params.rewards.fire);
+      }
+    }
+  }
+
+  // Q overlay: built once per world, refreshed in place.
+  function buildQLayer() {
+    const layer = $('qlayer');
+    layer.textContent = '';
+    qEls = [];
+    const tri = [
+      [[0, 0], [100, 0], [50, 50]],
+      [[0, 100], [100, 100], [50, 50]],
+      [[0, 0], [0, 100], [50, 50]],
+      [[100, 0], [100, 100], [50, 50]]
+    ];
+    const labelAt = [[50, 15], [50, 87], [16, 51], [84, 51]];
+    const showNumbers = W.cols <= 5 && W.rows <= 5;
+    for (let k = 0; k < W.n; k++) {
+      if (W.types[k] !== 'free') { qEls.push(null); continue; }
+      const ox = (k % W.cols) * 100, oy = Math.floor(k / W.cols) * 100;
+      const item = { polys: [], texts: [], arrow: null, ox: ox, oy: oy, numbers: showNumbers };
+      for (let a = 0; a < 4; a++) {
+        item.polys.push(el('polygon', { points: tri[a].map(function (p) { return (ox + p[0]) + ',' + (oy + p[1]); }).join(' ') }, layer));
+        if (showNumbers) item.texts.push(el('text', { x: ox + labelAt[a][0], y: oy + labelAt[a][1] }, layer));
+      }
+      item.arrow = el('path', { class: 'arrow' }, layer);
+      qEls.push(item);
+    }
+  }
+
+  function refreshQ() {
+    const layer = $('qlayer');
+    const visible = !!trainer && phase !== 'edit' && (showQ || phase === 'training');
+    layer.classList.toggle('off', !visible);
+    if (!visible) return;
+    SCALE = buildScale();
+    const tip = [[0, -34], [0, 34], [-34, 0], [34, 0]];
+    qEls.forEach(function (item, k) {
+      if (!item) return;
+      if (W.dist[k] < 0) {
+        item.polys.forEach(function (p) { p.setAttribute('fill', 'transparent'); });
+        item.texts.forEach(function (t) { t.textContent = ''; });
+        item.arrow.setAttribute('d', '');
+        return;
+      }
+      const row = qRow(k);
+      for (let a = 0; a < 4; a++) {
+        const tt = tint(row[a]);
+        item.polys[a].setAttribute('fill', tt.fill);
+        if (item.numbers) {
+          item.texts[a].setAttribute('fill', tt.text);
+          item.texts[a].textContent = fmtShort(row[a]);
+        }
+      }
+      const a = bestActions(row)[0];
+      const len = item.numbers ? 0.42 : 1;
+      const cx = item.ox + 50, cy = item.oy + 50;
+      const ex = cx + tip[a][0] * len, ey = cy + tip[a][1] * len;
+      const px = -tip[a][1] / 34 * 8, py = tip[a][0] / 34 * 8;
+      const bx = cx + tip[a][0] * len * 0.62, by = cy + tip[a][1] * len * 0.62;
+      item.arrow.setAttribute('d',
+        'M' + (cx - tip[a][0] * len * 0.55) + ' ' + (cy - tip[a][1] * len * 0.55) + 'L' + ex + ' ' + ey +
+        'M' + (bx + px) + ' ' + (by + py) + 'L' + ex + ' ' + ey + 'L' + (bx - px) + ' ' + (by - py));
+    });
+  }
+
+  function drawStartMark() {
+    const g = $('startmark');
+    g.textContent = '';
+    if ((phase === 'race' || phase === 'over') && startK !== null) {
+      const p = center(startK);
+      el('circle', { cx: p.x, cy: p.y, r: 38 }, g);
+    }
+  }
+
+  function drawTrails() {
+    const g = $('trails');
+    g.textContent = '';
+    if (!human) return;
+    [['machine', machine], ['human', human]].forEach(function (pair) {
+      const pts = pair[1].path.map(function (k) { const p = center(k); return p.x + ',' + p.y; });
+      if (pts.length > 1) el('polyline', { class: 'trail ' + pair[0], points: pts.join(' ') }, g);
+    });
+  }
+
+  function drawTokens() {
+    ['human', 'machine'].forEach(function (who) {
+      const g = tokenEls[who];
+      const r = who === 'human' ? human : machine;
+      if (!r) { g.style.display = 'none'; return; }
+      g.style.display = '';
+      const p = center(r.k);
+      const shared = human.k === machine.k;
+      const off = shared ? (who === 'human' ? -16 : 16) : 0;
+      g.style.transform = 'translate(' + (p.x + off) + 'px, ' + (p.y + off) + 'px)' + (shared ? ' scale(0.8)' : '');
+      g.classList.toggle('out', r.fate === 'fire');
+    });
+  }
+
+  // ---------- chart ----------
+  function drawChart() {
+    const svg = $('chart-svg');
+    svg.textContent = '';
+    const w = Math.max(200, svg.clientWidth || 320), h = 86, top = 8, bottom = 70, left = 38;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    const x = function (p) { return left + p * (w - left); };
+    const y = function (v) { return bottom - v * (bottom - top); };
+    el('line', { class: 'axis', x1: left, y1: bottom, x2: w, y2: bottom }, svg);
+    el('line', { class: 'axis', x1: left, y1: top, x2: w, y2: top }, svg);
+    el('line', { class: 'eps-line', x1: x(0.6), y1: top, x2: x(0.6), y2: bottom }, svg);
+    const t100 = el('text', { x: left - 6, y: top + 4, 'text-anchor': 'end' }, svg); t100.textContent = '100%';
+    const t0 = el('text', { x: left - 6, y: bottom + 4, 'text-anchor': 'end' }, svg); t0.textContent = '0%';
+    const te = el('text', { x: x(0.6), y: h - 2, 'text-anchor': 'middle' }, svg); te.textContent = 'ε = 0';
+    const ts = el('text', { x: w, y: h - 2, 'text-anchor': 'end' }, svg); ts.textContent = 'all steps';
+    if (history.length < 2) return;
+    const pts = history.map(function (p) { return x(p.x).toFixed(1) + ',' + y(p.v).toFixed(1); });
+    el('polygon', { class: 'area', points: left + ',' + bottom + ' ' + pts.join(' ') + ' ' + x(history[history.length - 1].x).toFixed(1) + ',' + bottom }, svg);
+    el('polyline', { class: 'curve', points: pts.join(' ') }, svg);
+  }
+
+  // ---------- side panel ----------
+  function place(k) { return 'row ' + (Math.floor(k / W.cols) + 1) + ', column ' + (k % W.cols + 1); }
+
+  function renderCompass() {
+    const boxes = document.querySelectorAll('#compass .q[data-a]');
+    const title = $('compass-title');
+    const note = $('compass-note');
+    const clearBoxes = function () { boxes.forEach(function (b) { b.textContent = ''; b.classList.remove('best'); b.style.color = ''; }); };
+    if (phase === 'edit' || !trainer) {
+      title.textContent = 'Q-values';
+      $('compass-center').textContent = '';
+      clearBoxes();
+      note.textContent = phase === 'edit' ? 'The agent learns its Q-values when you train it on the new grid.' : '';
+      return;
+    }
+    const k = hoverK !== null ? hoverK : (human ? human.k : null);
+    if (k === null) {
+      title.textContent = 'Q-values';
+      $('compass-center').textContent = '';
+      clearBoxes();
+      note.textContent = 'Point at a square to see its Q-values.';
+      return;
+    }
+    title.textContent = hoverK !== null ? 'Q-values at the square you point at' : 'Q-values at your square';
+    $('compass-center').textContent = 'state ' + k;
+    const t = W.types[k];
+    if (t !== 'free') {
+      clearBoxes();
+      note.textContent = t === 'wall' ? 'A wall. Nobody can stand here.'
+        : t === 'goal' ? 'The treasure ends the episode, so it has no actions.'
+        : 'The fire ends the episode, so it has no actions.';
+      return;
+    }
+    if (W.dist[k] < 0) {
+      clearBoxes();
+      note.textContent = 'This square has no path to a treasure, so the agent never trains here.';
+      return;
+    }
+    SCALE = buildScale();
+    const row = qRow(k);
+    const bestSet = bestActions(row);
+    boxes.forEach(function (b) {
+      const a = Number(b.dataset.a);
+      b.textContent = fmt(row[a]);
+      b.style.color = tint(row[a]).text;
+      b.classList.toggle('best', bestSet.indexOf(a) !== -1);
+    });
+    note.textContent = place(k).charAt(0).toUpperCase() + place(k).slice(1) + '. The outlined value is the move the agent picks here.';
+  }
+
+  function renderPolicyFacts(done) {
+    if (!trainer) {
+      $('fact-policy').textContent = '';
+      $('fact-training').textContent = '';
+      return;
+    }
+    const pc = policyCheck();
+    $('fact-policy').textContent = 'From ' + pc.reached + ' of ' + pc.open + ' open squares the greedy policy reaches the treasure' +
+      (pc.reached ? ', ' + (pc.shortest === pc.reached ? 'always' : pc.shortest + ' of them') + ' by a shortest path.' : '.');
+    $('fact-training').textContent = (done ? 'Trained for ' : 'So far ') + Math.round(trainer.progress() * params.steps).toLocaleString('en-US') +
+      ' steps in ' + trainer.episodes().toLocaleString('en-US') + ' episodes.';
+  }
+
+  function renderStatus(title, html, isError) {
+    $('status-title').textContent = title;
+    const p = $('status-text');
+    p.innerHTML = html;
+    p.classList.toggle('error', !!isError);
+  }
+
+  function lastMoveText() {
+    if (!lastMachine) return '';
+    const name = ACTIONS[lastMachine.a];
+    return lastMachine.kind === 'explore'
+      ? ' Its last move was ' + name + ', a random one (ε).'
+      : ' Its last move was ' + name + ', Q = ' + fmt(lastMachine.q) + '.';
+  }
+
+  function renderRace() {
+    $('steps-human').textContent = human ? human.steps : 0;
+    $('steps-machine').textContent = machine ? machine.steps : 0;
+    $('steps-best').textContent = best;
+  }
+
+  function renderCells() {
+    for (let k = 0; k < W.n; k++) {
+      const b = cellBtns[k];
+      const t = W.types[k];
+      let label = place(k) + ', ' + (t === 'free' ? 'open' : t === 'goal' ? 'treasure' : t);
+      let pick = false, reach = false;
+      if (phase === 'edit') label += ', paint ' + (tool === 'goal' ? 'treasure' : tool === 'free' ? 'open' : tool);
+      if (phase === 'choose' && t === 'free' && W.dist[k] > 0) { pick = true; label += ', start here'; }
+      if (phase === 'race') {
+        for (let a = 0; a < 4; a++) if (W.step(human.k, a) === k && k !== human.k) { reach = true; label += ', move ' + ACTIONS[a]; break; }
+      }
+      b.classList.toggle('pickable', pick);
+      b.classList.toggle('reachable', reach);
+      b.tabIndex = pick || reach || phase === 'edit' ? 0 : -1;
+      b.setAttribute('aria-label', label);
+    }
+    document.querySelectorAll('.pad button').forEach(function (b) { b.disabled = phase !== 'race'; });
+    board.classList.toggle('editing', phase === 'edit');
+  }
+
+  function renderScore() {
+    $('score-human').textContent = score.human;
+    $('score-machine').textContent = score.machine;
+    $('score-draw').textContent = score.draw;
+  }
+
+  function showDock(which) {
+    docks.edit.hidden = which !== 'edit';
+    docks.training.hidden = which !== 'training';
+    docks.choose.hidden = which !== 'choose';
+    docks.race.hidden = which !== 'race' && which !== 'over';
+    docks.over.hidden = which !== 'over';
+  }
+
+  function renderAll() {
+    drawStartMark();
+    drawTrails();
+    drawTokens();
+    renderCells();
+    renderCompass();
+    renderRace();
+    refreshQ();
+  }
+
+  function renderParams() {
+    const m = methodOf(params.method);
+    $('method').value = m.key;
+    $('method-info').textContent = m.info;
+    $('p-alpha').value = params.alpha;
+    $('p-gamma').value = params.gamma;
+    $('p-lambda').value = params.lambda;
+    $('p-steps').value = params.steps;
+    $('r-step').value = params.rewards.step;
+    $('r-goal').value = params.rewards.goal;
+    $('r-fire').value = params.rewards.fire;
+    $('field-lambda').hidden = m.key !== 'sarsa-lambda' && m.key !== 'q-lambda';
+  }
+
+  // ---------- training ----------
+  function stopAll() {
+    clearTimeout(timer);
+    timer = null;
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    busy = false;
+  }
+
+  function train() {
+    stopAll();
+    phase = 'training';
+    human = machine = null;
+    hoverK = null;
+    lastMachine = null;
+    trainer = createTrainer(W, {
+      method: params.method, alpha: params.alpha, gamma: params.gamma, lambda: params.lambda,
+      steps: params.steps, rewards: params.rewards, rng: Math.random
+    });
+    history = [{ x: 0, v: policyCheck().reached / Math.max(1, W.open.length) }];
+    showDock('training');
+    $('retrain').disabled = true;
+    const name = methodOf(params.method).name;
+    const chunk = Math.ceil(params.steps / TRAIN_FRAMES);
+    renderAll();
+    const tick = function () {
+      const done = trainer.run(reduceMotion ? params.steps : chunk);
+      const pct = Math.round(trainer.progress() * 100);
+      history.push({ x: trainer.progress(), v: policyCheck().reached / Math.max(1, W.open.length) });
+      $('train-bar').style.width = pct + '%';
+      $('train-pct').textContent = pct + '%';
+      $('train-label').textContent = 'Training with ' + name;
+      renderStatus('Training', name + ', episode ' + trainer.episodes().toLocaleString('en-US') + ', ε = ' + trainer.epsilon().toFixed(2) + '.');
+      refreshQ();
+      drawChart();
+      renderPolicyFacts(done);
+      if (done) { frame = null; finishTraining(); } else { frame = requestAnimationFrame(tick); }
+    };
+    frame = requestAnimationFrame(tick);
+  }
+
+  function finishNow() {
+    if (phase !== 'training' || !trainer) return;
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    trainer.run(params.steps);
+    history.push({ x: 1, v: policyCheck().reached / Math.max(1, W.open.length) });
+    drawChart();
+    finishTraining();
+  }
+
+  function finishTraining() {
+    $('retrain').disabled = false;
+    renderPolicyFacts(true);
+    choose();
+  }
+
+  // ---------- editor ----------
+  function enterEdit() {
+    stopAll();
+    if (worldKey !== 'custom') {
+      custom = Object.assign({}, gridOf(worldKey));
+      worldKey = 'custom';
+      $('world-custom').checked = true;
+    }
+    phase = 'edit';
+    trainer = null;
+    human = machine = null;
+    history = [];
+    hoverK = null;
+    W = buildWorld(custom);
+    drawWorld();
+    buildQLayer();
+    drawChart();
+    renderPolicyFacts(false);
+    fillSizeSelects();
+    showDock('edit');
+    renderStatus('Edit the grid', 'Pick Open, Wall, Fire or Treasure, then click or drag across the squares. Train when you are done.');
+    renderAll();
+    save();
+  }
+
+  function fillSizeSelects() {
+    ['rows', 'cols'].forEach(function (id) {
+      const sel = $(id);
+      if (!sel.options.length) {
+        for (let v = SIZE_MIN; v <= SIZE_MAX; v++) {
+          const o = document.createElement('option');
+          o.value = String(v);
+          o.textContent = String(v);
+          sel.appendChild(o);
+        }
+      }
+      sel.value = String(custom[id]);
+    });
+  }
+
+  function paint(k) {
+    if (phase !== 'edit' || k < 0 || k >= W.n || W.types[k] === tool) return;
+    custom.types = custom.types.slice(0, k) + CODE_OF[tool] + custom.types.slice(k + 1);
+    W = buildWorld(custom);
+    drawTerrain();
+    renderCells();
+    save();
+  }
+
+  function paintAt(e) {
+    const rect = board.getBoundingClientRect();
+    const c = Math.floor((e.clientX - rect.left) / rect.width * W.cols);
+    const r = Math.floor((e.clientY - rect.top) / rect.height * W.rows);
+    if (r >= 0 && r < W.rows && c >= 0 && c < W.cols) paint(r * W.cols + c);
+  }
+
+  function resize(rows, cols) {
+    let types = '';
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        types += r < custom.rows && c < custom.cols ? custom.types[r * custom.cols + c] : '0';
+      }
+    }
+    custom = { rows: rows, cols: cols, types: types };
+    W = buildWorld(custom);
+    drawWorld();
+    buildQLayer();
+    renderAll();
+    save();
+  }
+
+  function doneEditing() {
+    W = buildWorld(custom);
+    if (W.types.indexOf('goal') === -1) {
+      renderStatus('Edit the grid', 'Add at least one Treasure square before training.', true);
+      return;
+    }
+    if (!W.open.length) {
+      renderStatus('Edit the grid', 'No open square has a path to the treasure. Open a way through.', true);
+      return;
+    }
+    save();
+    setWorld('custom');
+  }
+
+  // ---------- flow ----------
+  function setWorld(key) {
+    stopAll();
+    worldKey = key;
+    $('world-' + key).checked = true;
+    W = buildWorld(gridOf(key));
+    recommend();
+    renderParams();
+    drawWorld();
+    buildQLayer();
+    save();
+    train();
+  }
+
+  function choose() {
+    stopAll();
+    phase = 'choose';
+    human = machine = null;
+    lastMachine = null;
+    hoverK = null;
+    showDock('choose');
+    renderStatus('Pick a start square', 'Click any open square. You (<span class="tag human">blue</span>) and the machine (<span class="tag machine">yellow</span>) both start there.');
+    renderAll();
+  }
+
+  function race(k) {
+    stopAll();
+    startK = k;
+    phase = 'race';
+    human = runner(k);
+    machine = runner(k);
+    turn = 0;
+    lastMachine = null;
+    hoverK = null;
+    best = W.dist[k];
+    showDock('race');
+    renderStatus('Your move', 'The shortest way from here is ' + best + ' steps. You are <span class="tag human">blue</span>, the machine is <span class="tag machine">yellow</span>.');
+    renderAll();
+  }
+
+  function onCell(k) {
+    if (phase === 'edit') { paint(k); return; }
+    if (phase === 'choose') {
+      if (W.types[k] === 'free' && W.dist[k] > 0) race(k);
+      return;
+    }
+    if (phase !== 'race') return;
+    for (let a = 0; a < 4; a++) {
+      if (W.step(human.k, a) === k && k !== human.k) { humanMove(a); return; }
+    }
+  }
+
+  function advance(r, a) {
+    r.k = W.step(r.k, a);
+    r.steps++;
+    r.path.push(r.k);
+    const t = W.types[r.k];
+    if (t === 'goal' || t === 'fire') r.fate = t;
+  }
+
+  function humanMove(a) {
+    if (phase !== 'race' || busy) return;
+    busy = true;
+    hoverK = null;
+    advance(human, a);
+    turn++;
+    renderAll();
+    timer = setTimeout(machineMove, reduceMotion ? 0 : 150);
+  }
+
+  function machineMove() {
+    timer = null;
+    const row = qRow(machine.k);
+    let a, kind;
+    if (Math.random() < raceEps) {
+      a = Math.floor(Math.random() * 4);
+      kind = 'explore';
+    } else {
+      const set = bestActions(row);
+      a = set[Math.floor(Math.random() * set.length)];
+      kind = 'greedy';
+    }
+    lastMachine = { a: a, q: row[a], kind: kind };
+    advance(machine, a);
+    busy = false;
+    resolve();
+  }
+
+  function resolve() {
+    const h = human.fate, m = machine.fate;
+    if (!h && !m) {
+      if (turn >= MAX_TURNS) return finish('draw', 'Nobody reached the treasure in ' + MAX_TURNS + ' turns.');
+      renderAll();
+      renderStatus('Your move', 'Turn ' + (turn + 1) + '.' + lastMoveText());
+      return;
+    }
+    if (h === 'goal' && m === 'goal') return finish('draw', 'You both reached the treasure in ' + human.steps + ' steps' + (human.steps === best ? ', the shortest path.' : '.'));
+    if (h === 'goal') return finish('human', 'You reached the treasure in ' + human.steps + ' steps' + (m ? ' and the machine walked into the fire.' : '.'));
+    if (m === 'goal') return finish('machine', h ? 'You walked into the fire (' + reward(params.rewards.fire) + ').' : 'It reached the treasure in ' + machine.steps + ' steps.');
+    if (h && m) return finish('draw', 'You both walked into the fire.');
+    if (h) return finish('machine', 'You walked into the fire (' + reward(params.rewards.fire) + ').');
+    return finish('human', 'The machine walked into the fire.');
+  }
+
+  function finish(result, why) {
+    phase = 'over';
+    score[result] += 1;
+    save();
+    renderScore();
+    renderAll();
+    const title = result === 'draw' ? 'Draw' : result === 'human' ? 'You win' : 'The machine wins';
+    $('end-title').textContent = title;
+    renderStatus(title, why + lastMoveText());
+    showDock('over');
+    $('again').focus({ preventScroll: true });
+  }
+
+  // ---------- controls ----------
+  document.querySelectorAll('.pad button').forEach(function (b) {
+    b.addEventListener('click', function () { humanMove(Number(b.dataset.move)); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (phase !== 'race' || !(e.key in KEYS)) return;
+    e.preventDefault();
+    humanMove(KEYS[e.key]);
+  });
+  board.addEventListener('pointerleave', function () { if (hoverK !== null) { hoverK = null; renderCompass(); } });
+  cellsEl.addEventListener('focusout', function () { hoverK = null; renderCompass(); });
+
+  board.addEventListener('pointerdown', function (e) {
+    if (phase !== 'edit') return;
+    painting = true;
+    board.setPointerCapture(e.pointerId);
+    paintAt(e);
+    e.preventDefault();
+  });
+  board.addEventListener('pointermove', function (e) { if (painting) paintAt(e); });
+  ['pointerup', 'pointercancel'].forEach(function (type) {
+    board.addEventListener(type, function () { painting = false; });
+  });
+
+  document.querySelectorAll('input[name="tool"]').forEach(function (r) {
+    r.addEventListener('change', function () { if (r.checked) { tool = r.value; renderCells(); } });
+  });
+  $('rows').addEventListener('change', function (e) { resize(Number(e.target.value), custom.cols); });
+  $('cols').addEventListener('change', function (e) { resize(custom.rows, Number(e.target.value)); });
+  $('clear-grid').addEventListener('click', function () {
+    custom = { rows: custom.rows, cols: custom.cols, types: '0'.repeat(custom.rows * custom.cols) };
+    W = buildWorld(custom);
+    drawTerrain();
+    renderAll();
+    save();
+  });
+  $('done-edit').addEventListener('click', doneEditing);
+  $('edit-grid').addEventListener('click', enterEdit);
+  $('finish-now').addEventListener('click', finishNow);
+  $('retrain').addEventListener('click', train);
+
+  $('random-start').addEventListener('click', function () {
+    if (W.open.length) race(W.open[Math.floor(Math.random() * W.open.length)]);
+  });
+  $('again').addEventListener('click', function () { race(startK); });
+  $('new-start').addEventListener('click', choose);
+  $('new-race').addEventListener('click', function () { if (phase !== 'edit' && phase !== 'training') choose(); });
+  $('reset-score').addEventListener('click', function () {
+    score.human = score.machine = score.draw = 0;
+    save();
+    renderScore();
+  });
+
+  document.querySelectorAll('input[name="world"]').forEach(function (r) {
+    r.addEventListener('change', function () { if (r.checked) setWorld(r.value); });
+  });
+
+  const methodSel = $('method');
+  METHODS.forEach(function (m) {
+    const o = document.createElement('option');
+    o.value = m.key;
+    o.textContent = m.name;
+    methodSel.appendChild(o);
+  });
+  methodSel.addEventListener('change', function () {
+    params.method = methodSel.value;
+    renderParams();
+    save();
+    if (phase !== 'edit') train();
+  });
+
+  function bindNumber(id, lo, hi, apply) {
+    const input = $(id);
+    input.addEventListener('change', function () {
+      const v = parseFloat(input.value);
+      if (!isFinite(v) || v < lo || v > hi) { renderParams(); return; }
+      apply(v);
+      renderParams();
+      drawTerrain();
+      save();
+      if (phase !== 'edit') train();
+    });
+  }
+  bindNumber('p-alpha', 0.01, 1, function (v) { params.alpha = v; });
+  bindNumber('p-gamma', 0, 0.999, function (v) { params.gamma = v; });
+  bindNumber('p-lambda', 0, 1, function (v) { params.lambda = v; });
+  bindNumber('p-steps', 1000, 2000000, function (v) { params.steps = Math.round(v); });
+  bindNumber('r-step', -1e6, 1e6, function (v) { params.rewards.step = v; });
+  bindNumber('r-goal', -1e6, 1e6, function (v) { params.rewards.goal = v; });
+  bindNumber('r-fire', -1e6, 1e6, function (v) { params.rewards.fire = v; });
+
+  const showQEl = $('show-q');
+  showQEl.checked = showQ;
+  showQEl.addEventListener('change', function () { showQ = showQEl.checked; save(); refreshQ(); });
+
+  const epsEl = $('eps');
+  function renderEps() { $('eps-out').textContent = 'ε = ' + raceEps.toFixed(2); }
+  epsEl.value = String(raceEps);
+  epsEl.addEventListener('input', function () { raceEps = parseFloat(epsEl.value); renderEps(); save(); });
+
+  // ---------- boot ----------
+  renderEps();
+  renderScore();
+  setWorld(worldKey);
+})();
+</script>
+</body>
+</html>
