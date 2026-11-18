@@ -1,0 +1,1985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Racetrack Duel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page: #12241E;
+    --board: #1D3A32;
+    --board-edge: #2C4C43;
+    --chalk: #ECEEE4;
+    --chalk-dim: #A3B8AE;
+    --chalk-faint: rgba(236, 238, 228, 0.16);
+    --human: #8FC6EC;
+    --machine: #F2D06B;
+    --pos: #A9DEB2;
+    --neg: #EF9D93;
+    --font: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 700px at 30% -10%, rgba(64, 110, 96, 0.35), transparent 70%),
+      var(--page);
+    color: var(--chalk);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 36px 24px 48px; }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px 40px;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 760;
+    font-variation-settings: "wdth" 78, "opsz" 96;
+    letter-spacing: -0.015em;
+    line-height: 0.95;
+  }
+  .lede { margin: 12px 0 0; max-width: 50ch; color: var(--chalk-dim); font-size: 1.05rem; }
+
+  .score { display: grid; grid-template-columns: repeat(3, auto); gap: 0 32px; margin: 0; }
+  .score div { display: flex; flex-direction: column-reverse; }
+  .score dt { color: var(--chalk-dim); font-size: 0.9rem; }
+  .score dd { margin: 0; font-size: 2.4rem; font-weight: 700; line-height: 1; font-variation-settings: "wdth" 80; }
+  .score .you dd { color: var(--human); }
+  .score .bot dd { color: var(--machine); }
+
+  /* ---------- layout ---------- */
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 660px) minmax(270px, 1fr);
+    gap: 48px;
+    align-items: start;
+    margin-top: 32px;
+  }
+
+  /* ---------- board ---------- */
+  .board-panel {
+    position: relative;
+    border-radius: 22px;
+    padding: clamp(14px, 3.2vw, 30px);
+    background:
+      radial-gradient(110% 80% at 18% 8%, rgba(236, 238, 228, 0.07), transparent 60%),
+      radial-gradient(80% 60% at 88% 92%, rgba(236, 238, 228, 0.05), transparent 60%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+      var(--board);
+    box-shadow:
+      inset 0 0 90px rgba(0, 0, 0, 0.38),
+      0 0 0 1px var(--board-edge),
+      0 30px 60px -30px rgba(0, 0, 0, 0.6);
+  }
+
+  .board { position: relative; width: 100%; }
+  .board canvas { display: block; width: 100%; height: auto; touch-action: none; -webkit-tap-highlight-color: transparent; }
+  .board canvas:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 4px; border-radius: 6px; }
+
+  /* ---------- dock under the board ---------- */
+  .dock {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 20px;
+    margin-top: clamp(14px, 2.6vw, 22px);
+    padding-top: clamp(12px, 2.4vw, 18px);
+    border-top: 1px solid var(--chalk-faint);
+    min-height: 74px;
+  }
+  .dock[hidden] { display: none; }
+  .prompt { margin: 0; color: var(--chalk-dim); max-width: 34ch; }
+  .prompt kbd, .note kbd {
+    padding: 0 0.35em;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.9em;
+    color: var(--chalk);
+  }
+
+  .race { display: grid; grid-template-columns: repeat(3, auto); gap: 0 26px; margin: 0; }
+  .race div { display: flex; flex-direction: column-reverse; }
+  .race dt { color: var(--chalk-dim); font-size: 0.86rem; }
+  .race dd { margin: 0; font-size: 1.7rem; font-weight: 700; line-height: 1.05; font-variation-settings: "wdth" 82; }
+  .race .you dd { color: var(--human); }
+  .race .bot dd { color: var(--machine); }
+
+  .result h2 {
+    margin: 0;
+    font-size: clamp(1.3rem, 3.4vw, 1.5rem);
+    font-weight: 740;
+    font-variation-settings: "wdth" 82, "opsz" 96;
+    line-height: 1.1;
+  }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+  .progress { flex: 1 1 200px; min-width: 0; }
+  .progress-head { display: flex; justify-content: space-between; gap: 12px; color: var(--chalk-dim); font-size: 0.92rem; }
+  .bar { height: 8px; margin-top: 8px; border-radius: 999px; background: rgba(236, 238, 228, 0.1); overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--pos); }
+
+  .btn {
+    padding: 0.6rem 1.1rem;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { border-color: rgba(236, 238, 228, 0.45); }
+  .btn.primary { border-color: var(--chalk); background: var(--chalk); color: var(--page); }
+  .btn.primary:hover { background: #fff; }
+  .btn:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+
+
+  /* ---------- side panel ---------- */
+  aside { min-width: 0; }
+  .status h2 { margin: 0; font-size: 1.85rem; font-weight: 720; font-variation-settings: "wdth" 85; line-height: 1.1; }
+  .status p { margin: 8px 0 0; color: var(--chalk-dim); }
+  .tag { font-weight: 700; }
+  .tag.human { color: var(--human); }
+  .tag.machine { color: var(--machine); }
+
+  .group { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--chalk-faint); }
+  .group-title { margin: 0 0 12px; font-weight: 620; font-size: 1.05rem; }
+  .help { margin: 8px 0 0; max-width: 50ch; color: var(--chalk-dim); font-size: 0.92rem; }
+
+  .compass-wrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .compass { display: grid; gap: 4px; }
+  .compass .q {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 150px;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-weight: 640;
+    font-size: 0.98rem;
+    background: rgba(236, 238, 228, 0.04);
+  }
+  .compass .q .qn { color: var(--chalk-dim); font-weight: 560; font-size: 0.86rem; }
+  .compass .q.best { box-shadow: inset 0 0 0 2px currentColor; }
+  .compass .center { color: var(--chalk-dim); font-size: 0.86rem; text-align: center; }
+  .compass-note { flex: 1 1 150px; margin: 0; color: var(--chalk-dim); font-size: 0.92rem; max-width: 26ch; }
+
+  .segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 22px;
+  }
+  .segmented input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .segmented label {
+    padding: 0.42rem 0.95rem;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--chalk-dim);
+  }
+  .segmented input:checked + label { background: var(--chalk); color: var(--page); }
+  .segmented input:focus-visible + label { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  .segmented.small label { padding: 0.32rem 0.75rem; font-size: 0.92rem; }
+
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+
+  select, input[type="number"] {
+    padding: 0.45rem 0.7rem;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 12px;
+    background: var(--page);
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 600;
+    min-width: 0;
+  }
+  select {
+    padding-right: 2rem;
+    background: var(--page) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23A3B8AE' stroke-width='2'/></svg>") no-repeat right 0.75rem center;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  select:focus-visible, input[type="number"]:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  input[type="number"] { width: 100%; }
+
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+  .fields.rewards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field label { color: var(--chalk-dim); font-size: 0.86rem; }
+  .field[hidden] { display: none; }
+
+  .facts { margin: 14px 0 0; padding: 0; list-style: none; color: var(--chalk-dim); font-size: 0.92rem; max-width: 52ch; }
+  .facts li + li { margin-top: 4px; }
+
+  .chart { margin: 16px 0 0; }
+  .chart svg { display: block; width: 100%; height: 86px; overflow: visible; }
+  .chart .axis { stroke: var(--chalk-faint); stroke-width: 1; }
+  .chart .eps-line { stroke: var(--chalk-dim); stroke-width: 1; stroke-dasharray: 3 4; }
+  .chart .curve { fill: none; stroke: var(--pos); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .area { fill: rgba(169, 222, 178, 0.12); }
+  .chart text { fill: var(--chalk-dim); font: 500 11px var(--font); }
+  .chart figcaption { margin-top: 6px; color: var(--chalk-dim); font-size: 0.86rem; }
+
+  .switch { display: inline-flex; align-items: center; gap: 12px; font-weight: 620; font-size: 1.05rem; cursor: pointer; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .switch .track {
+    position: relative;
+    flex: none;
+    width: 46px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1.5px solid var(--chalk-faint);
+    background: rgba(236, 238, 228, 0.06);
+    transition: background 0.18s ease, border-color 0.18s ease;
+  }
+  .switch .track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: var(--chalk-dim);
+    transition: transform 0.18s ease, background 0.18s ease;
+  }
+  .switch input:checked + .track { background: rgba(169, 222, 178, 0.22); border-color: var(--pos); }
+  .switch input:checked + .track::after { transform: translateX(20px); background: var(--pos); }
+  .switch input:focus-visible + .track { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+
+  .slider-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .slider-head label { font-weight: 620; font-size: 1.05rem; }
+  .slider-head output { font-weight: 650; }
+  input[type="range"] { width: 100%; margin: 12px 0 0; accent-color: var(--machine); }
+
+  .row-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .note { margin: 0; max-width: 52ch; color: var(--chalk-dim); font-size: 0.86rem; }
+  .note + .note { margin-top: 8px; }
+
+  @media (max-width: 920px) {
+    main { grid-template-columns: 1fr; gap: 30px; }
+    .board-panel { max-width: 660px; width: 100%; margin: 0 auto; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 22px 16px 36px; }
+    header { gap: 18px; }
+    .score { gap: 0 24px; }
+    .score dd { font-size: 2rem; }
+    .race { gap: 0 18px; }
+    .race dd { font-size: 1.45rem; }
+    .fields, .fields.rewards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+  .pad button {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 12px;
+    background: rgba(236, 238, 228, 0.04);
+    color: var(--chalk);
+    cursor: pointer;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .pad button:hover { border-color: var(--human); }
+  .pad button:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  .pad button.held { border-color: var(--human); background: rgba(143, 198, 236, 0.14); }
+  .pad svg path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(3, 44px);
+    grid-auto-rows: 40px;
+    gap: 5px;
+  }
+  .pad svg { width: 18px; height: 18px; }
+  .pad [data-a="4"] svg path { stroke-width: 5; }
+  .pad button:disabled { opacity: 0.35; cursor: default; }
+  .compass { grid-template-columns: repeat(3, 66px); }
+  .compass .q { justify-content: center; min-width: 0; height: 44px; padding: 0 4px; font-size: 0.92rem; }
+  .compass .center { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Racetrack</h1>
+      <p class="lede">Train a car with one of seven reinforcement-learning methods, then race it turn by turn on the same track. Steer by speeding up or slowing down; first across the line wins.</p>
+    </div>
+    <dl class="score" aria-label="Score">
+      <div class="you"><dt>You</dt><dd id="score-human">0</dd></div>
+      <div class="bot"><dt>Machine</dt><dd id="score-machine">0</dd></div>
+      <div><dt>Draws</dt><dd id="score-draw">0</dd></div>
+    </dl>
+  </header>
+
+  <main>
+    <section class="board-panel" aria-label="Game board">
+      <div class="board" id="board">
+        <canvas id="cv" width="1320" height="1320" tabindex="0" aria-label="Race track. Click one of the nine marked squares to choose your next move, or use the keyboard."></canvas>
+      </div>
+
+      <div class="dock" id="dock-train" hidden>
+        <div class="progress">
+          <div class="progress-head"><span id="train-label">Training</span><span id="train-pct">0%</span></div>
+          <div class="bar"><span id="train-bar"></span></div>
+        </div>
+        <button class="btn" type="button" id="finish-now">Finish now</button>
+      </div>
+
+      <div class="dock" id="dock-ready" hidden>
+        <p class="prompt">Click a square on the start line. Both cars start there, at rest.</p>
+        <button class="btn primary" type="button" id="random-start">Random start</button>
+      </div>
+
+      <div class="dock" id="dock-race" hidden>
+        <dl class="race">
+          <div><dt>Turn</dt><dd id="turn">0</dd></div>
+          <div class="you"><dt>Your speed</dt><dd id="speed-human">→0 ↑0</dd></div>
+          <div class="bot"><dt>Machine's speed</dt><dd id="speed-machine">→0 ↑0</dd></div>
+        </dl>
+        <div class="pad" role="group" aria-label="Choose your acceleration">
+          <button type="button" data-a="6" aria-label="Accelerate up and left"><svg viewBox="0 0 20 20"><path d="M15 15L5 5M5 12V5h7"/></svg></button>
+          <button type="button" data-a="7" aria-label="Accelerate up"><svg viewBox="0 0 20 20"><path d="M10 16V4M4 10l6-6 6 6"/></svg></button>
+          <button type="button" data-a="8" aria-label="Accelerate up and right"><svg viewBox="0 0 20 20"><path d="M5 15L15 5M8 5h7v7"/></svg></button>
+          <button type="button" data-a="3" aria-label="Accelerate left"><svg viewBox="0 0 20 20"><path d="M16 10H4M10 4l-6 6 6 6"/></svg></button>
+          <button type="button" data-a="4" aria-label="Coast"><svg viewBox="0 0 20 20"><path d="M10 10h0.01"/></svg></button>
+          <button type="button" data-a="5" aria-label="Accelerate right"><svg viewBox="0 0 20 20"><path d="M4 10h12M10 4l6 6-6 6"/></svg></button>
+          <button type="button" data-a="0" aria-label="Accelerate down and left"><svg viewBox="0 0 20 20"><path d="M15 5L5 15M5 8v7h7"/></svg></button>
+          <button type="button" data-a="1" aria-label="Accelerate down"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10l6 6 6-6"/></svg></button>
+          <button type="button" data-a="2" aria-label="Accelerate down and right"><svg viewBox="0 0 20 20"><path d="M5 5l10 10M15 8v7H8"/></svg></button>
+        </div>
+      </div>
+
+      <div class="dock result" id="dock-over" hidden>
+        <h2 id="end-title">Draw</h2>
+        <div class="actions">
+          <button class="btn primary" type="button" id="again">Race again</button>
+          <button class="btn" type="button" id="new-start">New start square</button>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="status" aria-live="polite">
+        <h2 id="status-title">Training</h2>
+        <p id="status-text"></p>
+      </div>
+
+      <div class="group">
+        <p class="group-title" id="compass-title">Q-values</p>
+        <div class="compass-wrap">
+          <div class="compass" id="compass">
+            <div class="q" data-a="6"></div><div class="q" data-a="7"></div><div class="q" data-a="8"></div>
+            <div class="q" data-a="3"></div><div class="q" data-a="4"></div><div class="q" data-a="5"></div>
+            <div class="q" data-a="0"></div><div class="q" data-a="1"></div><div class="q" data-a="2"></div>
+            <div class="center" id="compass-center"></div>
+          </div>
+          <p class="compass-note" id="compass-note"></p>
+        </div>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Track</p>
+        <div class="segmented" role="radiogroup" aria-label="Track" id="track-picker"></div>
+        <div class="row">
+          <div class="segmented small" role="radiogroup" aria-label="Slip" id="slip-picker"></div>
+        </div>
+        <p class="help" id="track-info"></p>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Training</p>
+        <div class="row">
+          <label for="method">Method</label>
+          <select id="method"></select>
+        </div>
+        <p class="help" id="method-info"></p>
+        <div class="fields">
+          <div class="field"><label for="p-alpha">α (step size)</label><input type="number" id="p-alpha" min="0.01" max="1" step="0.01"></div>
+          <div class="field"><label for="p-gamma">γ (discount)</label><input type="number" id="p-gamma" min="0" max="1" step="0.01"></div>
+          <div class="field" id="field-lambda"><label for="p-lambda">λ (trace)</label><input type="number" id="p-lambda" min="0" max="1" step="0.05"></div>
+          <div class="field"><label for="p-steps">Steps</label><input type="number" id="p-steps" min="1000" max="10000000" step="1000"></div>
+        </div>
+        <div class="fields rewards">
+          <div class="field"><label for="r-step">Each turn</label><input type="number" id="r-step" step="0.5"></div>
+          <div class="field"><label for="r-crash">Crash</label><input type="number" id="r-crash" step="1"></div>
+          <div class="field"><label for="r-finish">Finish</label><input type="number" id="r-finish" step="1"></div>
+        </div>
+        <p class="help">ε falls from 1 to 0 over the first 60% of the steps; switching method resets α to the value that suits it here. The state is exact: the square and the velocity (each component 0–4), <span id="state-count"></span> in all. As in the book, a crash sends the car back to a random start square at rest, and the episode goes on.</p>
+        <figure class="chart" id="chart" aria-label="Training progress chart">
+          <svg id="chart-svg"></svg>
+          <figcaption>How close the greedy car comes to the fastest possible lap from each start square, with no slip, across training. 100% is the fastest possible. The dashed line is where ε reaches 0.</figcaption>
+        </figure>
+        <ul class="facts">
+          <li id="fact-policy"></li>
+          <li id="fact-training"></li>
+        </ul>
+        <div class="row">
+          <button class="btn" type="button" id="retrain">Train again</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="switch">
+          <input type="checkbox" role="switch" id="show-q">
+          <span class="track" aria-hidden="true"></span>
+          <span>Show the policy on the board</span>
+        </label>
+        <p class="help">Every square of the track at the machine's current velocity. The green is how soon it expects to finish from there; brighter is sooner, and squares it has never tried at that velocity stay blank. The chalk mark is the acceleration it would choose. Point at a square to read all nine values.</p>
+      </div>
+
+      <div class="group">
+        <div class="slider-head">
+          <label for="eps">Exploration in the race</label>
+          <output id="eps-out" for="eps">ε = 0.00</output>
+        </div>
+        <input type="range" id="eps" min="0" max="1" step="0.05" value="0">
+        <p class="help">Chance, on every turn, that the machine ignores its Q-table and accelerates at random. At 0 it drives the line it learned; to beat it, find a faster one.</p>
+      </div>
+
+      <div class="group row-actions">
+        <button class="btn" type="button" id="new-race">New race</button>
+        <button class="btn" type="button" id="reset-score">Reset score</button>
+      </div>
+
+      <div class="group">
+        <p class="note">Both cars move at the same time each turn. Your next square is your current velocity plus the acceleration you choose, which the board marks with nine dots; a red cross means that move crashes. Crossing the line on the same turn, or nobody finishing within 100 turns, is a draw.</p>
+        <p class="note">Keys: <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> / <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> or the number pad pick the nine accelerations; the arrows pick the four straight ones and <kbd>Space</kbd> coasts.</p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+// Tabular RL trainer. Shared by the page and the Node tests.
+// env: { nStates, nActions, cap, reset() -> s, step(a) -> { s, r, done } }
+//   The env keeps its own simulator; s is the discretised state index.
+// cfg: { method, alpha, gamma, lambda, steps, rng }
+// ε falls linearly from 1 to 0 over the first EXPLORE_SHARE of the steps, then stays 0.
+// Episodes stop when the env reports done or after env.cap steps. Monte Carlo uses exploring starts.
+const EXPLORE_SHARE = 0.6;
+
+function createTrainer(env, cfg) {
+  const A = env.nActions;
+  const N = env.nStates;
+  const rnd = cfg.rng;
+  const QA = new Float64Array(N * A);
+  const QB = cfg.method === 'double' ? new Float64Array(N * A) : null;
+  for (let i = 0; i < N * A; i++) {
+    QA[i] = rnd() / 100;
+    if (QB) QB[i] = rnd() / 100;
+  }
+  const seen = new Uint8Array(N);
+  const usesTraces = cfg.method === 'sarsa-lambda' || cfg.method === 'q-lambda';
+  const E = usesTraces ? new Float64Array(N * A) : null;
+  let active = [];
+  let t = 0, s = 0, a = 0, epLen = 0, episodes = 0, seenCount = 0;
+  let buffer = [];
+
+  function value(k, b) { return QB ? (QA[k * A + b] + QB[k * A + b]) / 2 : QA[k * A + b]; }
+
+  function argmax(get, k) {
+    let best = -Infinity, ties = [];
+    for (let b = 0; b < A; b++) {
+      const v = get(k, b);
+      if (v > best + 1e-12) { best = v; ties = [b]; } else if (Math.abs(v - best) <= 1e-12) ties.push(b);
+    }
+    return ties.length === 1 ? ties[0] : ties[Math.floor(rnd() * ties.length)];
+  }
+  const fromA = function (k, b) { return QA[k * A + b]; };
+  const fromB = function (k, b) { return QB[k * A + b]; };
+
+  function epsilon() { return Math.max(0, 1 - t / (EXPLORE_SHARE * cfg.steps)); }
+  function choose(k) { return rnd() < epsilon() ? Math.floor(rnd() * A) : argmax(value, k); }
+  function maxRow(k) {
+    let m = -Infinity;
+    for (let b = 0; b < A; b++) m = Math.max(m, QA[k * A + b]);
+    return m;
+  }
+  function mark(k) { if (!seen[k]) { seen[k] = 1; seenCount++; } }
+
+  function clearTraces() {
+    for (const i of active) E[i] = 0;
+    active = [];
+  }
+
+  function begin() {
+    s = env.reset();
+    mark(s);
+    epLen = 0;
+    episodes++;
+    if (usesTraces) clearTraces();
+    buffer = [];
+    a = cfg.method === 'mc' ? Math.floor(rnd() * A) : choose(s);
+  }
+
+  function traceUpdate(delta, keep) {
+    const decay = cfg.gamma * cfg.lambda;
+    const next = [];
+    for (const i of active) {
+      QA[i] += cfg.alpha * delta * E[i];
+      if (keep) {
+        E[i] *= decay;
+        if (E[i] > 1e-6) next.push(i); else E[i] = 0;
+      } else {
+        E[i] = 0;
+      }
+    }
+    active = next;
+  }
+
+  function finishMonteCarlo() {
+    const first = new Map();
+    buffer.forEach(function (step, i) { if (!first.has(step.idx)) first.set(step.idx, i); });
+    let G = 0;
+    for (let i = buffer.length - 1; i >= 0; i--) {
+      G = buffer[i].r + cfg.gamma * G;
+      if (first.get(buffer[i].idx) === i) QA[buffer[i].idx] += cfg.alpha * (G - QA[buffer[i].idx]);
+    }
+  }
+
+  function stepOnce() {
+    const out = env.step(a);
+    const s2 = out.s, r = out.r, end = out.done;
+    const idx = s * A + a;
+    let a2 = 0;
+    if (!end) mark(s2);
+    switch (cfg.method) {
+      case 'q':
+        QA[idx] += cfg.alpha * (r + (end ? 0 : cfg.gamma * maxRow(s2)) - QA[idx]);
+        if (!end) a2 = choose(s2);
+        break;
+      case 'sarsa':
+        if (!end) a2 = choose(s2);
+        QA[idx] += cfg.alpha * (r + (end ? 0 : cfg.gamma * QA[s2 * A + a2]) - QA[idx]);
+        break;
+      case 'expected': {
+        let expect = 0;
+        if (!end) {
+          const eps = epsilon();
+          let sum = 0;
+          for (let b = 0; b < A; b++) sum += QA[s2 * A + b];
+          expect = (1 - eps) * maxRow(s2) + (eps / A) * sum;
+          a2 = choose(s2);
+        }
+        QA[idx] += cfg.alpha * (r + cfg.gamma * expect - QA[idx]);
+        break;
+      }
+      case 'double':
+        if (rnd() < 0.5) {
+          const target = end ? 0 : QB[s2 * A + argmax(fromA, s2)];
+          QA[idx] += cfg.alpha * (r + cfg.gamma * target - QA[idx]);
+        } else {
+          const target = end ? 0 : QA[s2 * A + argmax(fromB, s2)];
+          QB[idx] += cfg.alpha * (r + cfg.gamma * target - QB[idx]);
+        }
+        if (!end) a2 = choose(s2);
+        break;
+      case 'sarsa-lambda': {
+        if (!end) a2 = choose(s2);
+        const delta = r + (end ? 0 : cfg.gamma * QA[s2 * A + a2]) - QA[idx];
+        if (E[idx] === 0) active.push(idx);
+        E[idx] += 1;
+        traceUpdate(delta, !end);
+        break;
+      }
+      case 'q-lambda': {
+        let star = 0;
+        if (!end) {
+          a2 = choose(s2);
+          star = QA[s2 * A + a2] >= maxRow(s2) ? a2 : argmax(fromA, s2);
+        }
+        const delta = r + (end ? 0 : cfg.gamma * QA[s2 * A + star]) - QA[idx];
+        if (E[idx] === 0) active.push(idx);
+        E[idx] += 1;
+        traceUpdate(delta, !end && a2 === star);
+        break;
+      }
+      case 'mc':
+        buffer.push({ idx: idx, r: r });
+        if (!end) a2 = choose(s2);
+        break;
+      default:
+        throw new Error('unknown method ' + cfg.method);
+    }
+    t++;
+    epLen++;
+    if (end || epLen >= env.cap) {
+      if (cfg.method === 'mc') finishMonteCarlo();
+      begin();
+    } else {
+      s = s2;
+      a = a2;
+    }
+  }
+
+  begin();
+  return {
+    run: function (count) {
+      const stop = Math.min(cfg.steps, t + count);
+      while (t < stop) stepOnce();
+      return t >= cfg.steps;
+    },
+    value: value,
+    epsilon: epsilon,
+    progress: function () { return t / cfg.steps; },
+    episodes: function () { return episodes; },
+    visited: function () { return seenCount; }
+  };
+}
+
+// Racetrack model (Sutton & Barto, Exercise 5.12). Shared by the page and the Node tests.
+// '#' is off the track, '.' track, 'S' the start line, 'F' the finish line. Row 0 is the top.
+// Velocity: vx (right) and vy (up), each 0..VMAX; both may be 0 only on the start line.
+// Each turn the car adds an acceleration of -1, 0 or +1 to each component, then moves; the straight
+// path from the old square to the new one decides whether it finishes, crashes or just lands.
+const RACE = {
+  VMAX: 4,
+  NV: 5,           // speeds per component (0..VMAX)
+  ACTIONS: 9       // a = (ay + 1) * 3 + (ax + 1), with ay = +1 meaning accelerate upward
+};
+const COAST = 4;   // ax = 0, ay = 0
+const TRACKS = {
+  classic: {
+    name: 'Classic',
+    steps: 3000000,
+    map: [
+      '###.............F',
+      '##..............F',
+      '##..............F',
+      '#...............F',
+      '................F',
+      '................F',
+      '..........#######',
+      '..........#######',
+      '.........########',
+      '.........########',
+      '.........########',
+      '.........########',
+      '.........########',
+      '.........########',
+      '#........########',
+      '#........########',
+      '#........########',
+      '#........########',
+      '#........########',
+      '#........########',
+      '#........########',
+      '#........########',
+      '##.......########',
+      '##.......########',
+      '##.......########',
+      '##.......########',
+      '##.......########',
+      '##.......########',
+      '##.......########',
+      '###......########',
+      '###......########',
+      '###SSSSSS########'
+    ]
+  },
+  wide: {
+    name: 'Wide turn',
+    steps: 3000000,
+    map: [
+      '################...............F',
+      '#############..................F',
+      '############...................F',
+      '###########....................F',
+      '###########....................F',
+      '###########....................F',
+      '###########....................F',
+      '###########....................F',
+      '###########....................F',
+      '###########................#####',
+      '##########.................#####',
+      '##########.................#####',
+      '#########..................#####',
+      '#########.................######',
+      '########..................######',
+      '########..................######',
+      '#######...................######',
+      '#######...................######',
+      '######....................######',
+      '######....................######',
+      '#####....................#######',
+      '####.....................#######',
+      '####.....................#######',
+      '###......................#######',
+      '###......................#######',
+      '##.......................#######',
+      '##......................########',
+      '#.......................########',
+      '#.......................########',
+      'SSSSSSSSSSSSSSSSSSSSSSSS########'
+    ]
+  },
+  stairs: {
+    name: 'Staircase',
+    steps: 2000000,
+    map: [
+      '########################.......F',
+      '########################.......F',
+      '########################.......F',
+      '########################.......F',
+      '########################.......F',
+      '########################.......F',
+      '####################........####',
+      '####################........####',
+      '####################........####',
+      '####################........####',
+      '################........########',
+      '################........########',
+      '################........########',
+      '################........########',
+      '############........############',
+      '############........############',
+      '############........############',
+      '############........############',
+      '########........################',
+      '########........################',
+      '########........################',
+      '########........################',
+      '####........####################',
+      '####........####################',
+      '####........####################',
+      '####........####################',
+      '........########################',
+      '........########################',
+      '........########################',
+      'SSSSSSSS########################'
+    ]
+  }
+};
+const SLIPS = {
+  none: { name: 'No slip', p: 0 },
+  book: { name: 'Slip 10%', p: 0.1 },
+  ice: { name: 'Slip 25%', p: 0.25 }
+};
+
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let z = s;
+    z = Math.imul(z ^ (z >>> 15), z | 1);
+    z ^= z + Math.imul(z ^ (z >>> 7), z | 61);
+    return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function accelOf(a) { return { ax: a % 3 - 1, ay: Math.floor(a / 3) - 1 }; }
+
+// Follow a straight move from the centre of square (x, y) by (dx, -dy). Returns what happens first
+// ('crash', 'finish' or 'land') and the point where it happens, in square units.
+function trace(t, x, y, dx, dy) {
+  const n = Math.max(Math.abs(dx), Math.abs(dy)) * 4;
+  for (let i = 1; i <= n; i++) {
+    const px = x + 0.5 + dx * i / n, py = y + 0.5 - dy * i / n;
+    const cx = Math.floor(px), cy = Math.floor(py);
+    if (cx < 0 || cy < 0 || cx >= t.cols || cy >= t.rows || t.map[cy][cx] === '#') return { out: 'crash', px: px, py: py };
+    if (t.map[cy][cx] === 'F') return { out: 'finish', px: px, py: py };
+  }
+  return { out: 'land', px: x + 0.5 + dx, py: y + 0.5 - dy };
+}
+
+// Compile a track: square indexes, states, the deterministic transition table and the fastest finish.
+// next[s * 9 + a] is the next state, -1 for a crash, -2 for crossing the finish line.
+// best[s] is the fewest turns to finish from s with no slip (Infinity if it cannot).
+function buildTrack(spec) {
+  const t = { spec: spec, map: spec.map, rows: spec.map.length, cols: spec.map[0].length };
+  t.index = new Int32Array(t.rows * t.cols).fill(-1);
+  t.xy = [];
+  t.start = [];
+  for (let y = 0; y < t.rows; y++) {
+    for (let x = 0; x < t.cols; x++) {
+      const ch = t.map[y][x];
+      if (ch === '#') continue;
+      t.index[y * t.cols + x] = t.xy.length;
+      if (ch === 'S') t.start.push(t.xy.length);
+      t.xy.push({ x: x, y: y, start: ch === 'S' });
+    }
+  }
+  t.nStates = t.xy.length * RACE.NV * RACE.NV;
+  t.next = new Int32Array(t.nStates * RACE.ACTIONS);
+  for (let s = 0; s < t.nStates; s++) {
+    const p = stateOf(t, s);
+    for (let a = 0; a < RACE.ACTIONS; a++) t.next[s * RACE.ACTIONS + a] = move(t, p, a).next;
+  }
+  t.best = new Float64Array(t.nStates).fill(Infinity);
+  for (let changed = true; changed;) {
+    changed = false;
+    for (let s = 0; s < t.nStates; s++) {
+      let b = t.best[s];
+      for (let a = 0; a < RACE.ACTIONS; a++) {
+        const n = t.next[s * RACE.ACTIONS + a];
+        const v = n === -2 ? 1 : n >= 0 ? 1 + t.best[n] : Infinity;
+        if (v < b) b = v;
+      }
+      if (b < t.best[s]) { t.best[s] = b; changed = true; }
+    }
+  }
+  return t;
+}
+
+function stateIndex(cell, vx, vy) { return (cell * RACE.NV + vx) * RACE.NV + vy; }
+function stateOf(t, s) {
+  const vy = s % RACE.NV, vx = Math.floor(s / RACE.NV) % RACE.NV, cell = Math.floor(s / (RACE.NV * RACE.NV));
+  return { cell: cell, x: t.xy[cell].x, y: t.xy[cell].y, vx: vx, vy: vy };
+}
+
+// One move from position p with action a: new velocity, outcome and where it happens, next state (-1 crash, -2 finish).
+function move(t, p, a) {
+  const acc = accelOf(a);
+  let vx = Math.max(0, Math.min(RACE.VMAX, p.vx + acc.ax));
+  let vy = Math.max(0, Math.min(RACE.VMAX, p.vy + acc.ay));
+  if (vx === 0 && vy === 0 && !t.xy[p.cell].start) { vx = p.vx; vy = p.vy; }
+  const tr = trace(t, p.x, p.y, vx, vy);
+  const next = tr.out === 'crash' ? -1 : tr.out === 'finish' ? -2 : stateIndex(t.index[(p.y - vy) * t.cols + p.x + vx], vx, vy);
+  return { vx: vx, vy: vy, out: tr.out, px: tr.px, py: tr.py, next: next };
+}
+
+// Training environment: book rules. A crash puts the car back on a random start square at rest.
+// rewards: { step, crash, finish }
+function makeRaceEnv(t, rewards, slip, rng, cap) {
+  let s = 0;
+  const restart = function () { return stateIndex(t.start[Math.floor(rng() * t.start.length)], 0, 0); };
+  return {
+    nStates: t.nStates,
+    nActions: RACE.ACTIONS,
+    cap: cap,
+    reset: function () { s = restart(); return s; },
+    step: function (a) {
+      const n = t.next[s * RACE.ACTIONS + (rng() < slip ? COAST : a)];
+      if (n === -2) return { s: s, r: rewards.step + rewards.finish, done: true };
+      if (n === -1) { s = restart(); return { s: s, r: rewards.step + rewards.crash, done: false }; }
+      s = n;
+      return { s: s, r: rewards.step, done: false };
+    }
+  };
+}
+
+// Greedy laps from every start square with no slip. As in the book, a crash sends the car back to the
+// start line; here to the next start square in turn, so the test stays deterministic. policy(s) -> action.
+// Returns mean efficiency (fastest possible from the square / turns taken, 0 if not finished within cap).
+function raceEvaluate(policy, t, cap) {
+  const k = t.start.length;
+  let eff = 0, finished = 0, turns = 0, crashes = 0, best = 0;
+  for (let i = 0; i < k; i++) {
+    const home = stateIndex(t.start[i], 0, 0);
+    let s = home, n = 0, done = false, reset = i;
+    while (n < cap && !done) {
+      const nx = t.next[s * RACE.ACTIONS + policy(s)];
+      n++;
+      if (nx === -2) done = true;
+      else if (nx === -1) { crashes++; reset = (reset + 1) % k; s = stateIndex(t.start[reset], 0, 0); }
+      else s = nx;
+    }
+    if (done) { finished++; turns += n; eff += t.best[home] / n; }
+    best += t.best[home];
+  }
+  return { eff: eff / k, finished: finished, turns: finished ? turns / finished : 0, crashes: crashes, best: best / k };
+}
+
+// Chalk on canvas. Shapes are drawn once into sprites, eroded with a fixed grain so they read
+// as chalk, then blitted every frame. Moving things keep their grain because it is baked in.
+function createChalk(dpr) {
+  const GRAIN = (function () {
+    const n = 160, m = 10;
+    const c = document.createElement('canvas');
+    c.width = c.height = n;
+    const g = c.getContext('2d');
+    const img = g.createImageData(n, n);
+    const rng = mulberry32(99);
+    const coarse = [];
+    for (let i = 0; i < m * m; i++) coarse.push(rng());
+    const at = function (x, y) { return coarse[(y % m) * m + (x % m)]; };
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const fx = x / n * m, fy = y / n * m;
+        const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+        const cv = (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
+        const v = 0.62 * rng() + 0.38 * cv;
+        img.data[(y * n + x) * 4 + 3] = Math.round(255 * Math.max(0, Math.min(1, (v - 0.48) * 2.4)));
+      }
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  })();
+  const texts = new Map();
+
+  function canvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w));
+    c.height = Math.max(1, Math.ceil(h));
+    return c;
+  }
+
+  function erode(g, w, h, amount) {
+    const pat = g.createPattern(GRAIN, 'repeat');
+    pat.setTransform(new DOMMatrix().scale(Math.max(1, dpr * 0.85)));
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'destination-out';
+    g.globalAlpha = amount;
+    g.fillStyle = pat;
+    g.fillRect(0, 0, w, h);
+    g.restore();
+  }
+
+  // Sprite of w×h device pixels; draw(g) paints it, then the grain eats into it.
+  function sprite(w, h, draw, amount) {
+    const c = canvas(w, h);
+    const g = c.getContext('2d');
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    draw(g);
+    erode(g, c.width, c.height, amount === undefined ? 0.9 : amount);
+    return c;
+  }
+
+  // Stroke the current path twice, a hair apart, like a stick of chalk pressed unevenly.
+  function stroke(g, color, width, alpha) {
+    g.save();
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.globalAlpha = alpha;
+    g.stroke();
+    g.translate(width * 0.18, -width * 0.12);
+    g.globalAlpha = alpha * 0.45;
+    g.stroke();
+    g.restore();
+  }
+
+  // Parallel lines inside the current path.
+  function hatch(g, box, color, gap, width, alpha, angle) {
+    g.save();
+    g.clip();
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.globalAlpha = alpha;
+    const cx = box.x + box.w / 2, cy = box.y + box.h / 2, r = Math.hypot(box.w, box.h) / 2 + gap;
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    g.beginPath();
+    for (let d = -r; d <= r; d += gap) {
+      g.moveTo(cx + ca * -r - sa * d, cy + sa * -r + ca * d);
+      g.lineTo(cx + ca * r - sa * d, cy + sa * r + ca * d);
+    }
+    g.stroke();
+    g.restore();
+  }
+
+  // Cached chalk text sprite (px is the font size in device pixels).
+  function text(str, px, color, weight) {
+    const key = str + '|' + px + '|' + color + '|' + weight;
+    let c = texts.get(key);
+    if (c) return c;
+    const font = weight + ' ' + px + 'px "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif';
+    const probe = canvas(1, 1).getContext('2d');
+    probe.font = font;
+    const w = probe.measureText(str).width + px * 0.4;
+    c = sprite(w, px * 1.35, function (g) {
+      g.font = font;
+      g.textBaseline = 'middle';
+      g.fillStyle = color;
+      g.fillText(str, px * 0.2, px * 0.7);
+      g.globalAlpha = 0.4;
+      g.fillText(str, px * 0.2 + px * 0.03, px * 0.68);
+    }, 0.7);
+    if (document.fonts && document.fonts.status === 'loaded') texts.set(key, c);
+    return c;
+  }
+
+  return { sprite: sprite, stroke: stroke, hatch: hatch, text: text };
+}
+
+// Blit a sprite centred on (x, y) device pixels.
+function blit(ctx, img, x, y, alpha) {
+  ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+  ctx.drawImage(img, Math.round(x - img.width / 2), Math.round(y - img.height / 2));
+  ctx.globalAlpha = 1;
+}
+
+(function () {
+  'use strict';
+
+  // ---------- constants ----------
+  const METHODS = [
+    { key: 'q', name: 'Q-learning', alpha: 0.2, info: 'Off-policy TD: each update uses the best next acceleration, whatever the car actually does next.' },
+    { key: 'sarsa', name: 'SARSA', alpha: 0.2, info: 'On-policy TD: each update uses the acceleration the car actually takes next, exploration and slips included, so it learns a more careful line.' },
+    { key: 'double', name: 'Double Q-learning', alpha: 0.2, info: 'Two Q-tables: one picks the best next acceleration, the other values it, which curbs over-estimation. Each table sees half the updates, so it learns more slowly.' },
+    { key: 'expected', name: 'Expected SARSA', alpha: 0.2, info: 'Like SARSA, but uses the average value of the next accelerations under the ε-greedy policy instead of one sampled action.' },
+    { key: 'sarsa-lambda', name: 'SARSA(λ)', alpha: 0.05, info: 'SARSA with eligibility traces: every turn of the lap shares in each update, faded by γλ. Long laps are where traces pay off.' },
+    { key: 'q-lambda', name: 'Q(λ)', alpha: 0.05, info: 'Watkins\' Q(λ): Q-learning with eligibility traces, which are cut whenever the car explores.' },
+    { key: 'mc', name: 'Monte Carlo', alpha: 0.05, info: 'The book\'s method for this exercise: wait until the lap ends and learn from its full return. Each lap opens with a random acceleration (exploring starts). Early laps are long and noisy, so it is the slowest learner here, especially with slip.' }
+  ];
+  const MAX_TURNS = 100;              // a race with no finisher by then is a draw
+  const EVAL_CAP = 150;               // turns per greedy test lap
+  const EPISODE_CAP = 2000;           // turns per training lap
+  const TRAIN_FRAMES = 120;
+  const MOVE_MS = 280;                // animation of one turn
+  const DEMO_MS = 320;                // time between practice turns
+  const VIEW = 34;                    // the board shows VIEW × VIEW squares
+  const C = { chalk: '#ECEEE4', dim: '#A3B8AE', human: '#8FC6EC', machine: '#F2D06B', pos: '#A9DEB2', neg: '#EF9D93', board: '#1D3A32' };
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- persistence ----------
+  const STORE = 'racetrack-lab-v1';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        score: score, showQ: showQ, eps: raceEps, track: trackKey, slip: slipKey,
+        method: params.method, alpha: params.alpha, gamma: params.gamma, lambda: params.lambda, rewards: params.rewards
+      }));
+    } catch (e) { /* storage unavailable */ }
+  }
+  function num(v, fallback, lo, hi) {
+    return typeof v === 'number' && isFinite(v) && v >= lo && v <= hi ? v : fallback;
+  }
+  function methodOf(key) { return METHODS.filter(function (m) { return m.key === key; })[0]; }
+
+  const saved = load();
+  const score = Object.assign({ human: 0, machine: 0, draw: 0 }, saved.score || {});
+  let showQ = !!saved.showQ;
+  let raceEps = num(saved.eps, 0, 0, 1);
+  let trackKey = TRACKS[saved.track] ? saved.track : 'classic';
+  let slipKey = SLIPS[saved.slip] ? saved.slip : 'book';
+  const savedRewards = saved.rewards || {};
+  const startMethod = methodOf(saved.method) || METHODS[0];
+  const params = {
+    method: startMethod.key,
+    alpha: num(saved.alpha, startMethod.alpha, 0.01, 1),
+    gamma: num(saved.gamma, 1, 0, 1),
+    lambda: num(saved.lambda, 0.8, 0, 1),
+    steps: TRACKS[trackKey].steps,
+    rewards: {
+      step: num(savedRewards.step, -1, -1e6, 1e6),
+      crash: num(savedRewards.crash, 0, -1e6, 1e6),
+      finish: num(savedRewards.finish, 0, -1e6, 1e6)
+    }
+  };
+
+  // ---------- policy ----------
+  let track = buildTrack(TRACKS[trackKey]);
+  let trainer = null;
+
+  function q(k, a) { return trainer ? trainer.value(k, a) : 0; }
+  function qRow(k) {
+    const row = [];
+    for (let a = 0; a < RACE.ACTIONS; a++) row.push(q(k, a));
+    return row;
+  }
+  function bestActions(row) {
+    const mx = Math.max.apply(null, row);
+    const out = [];
+    row.forEach(function (v, a) { if (v >= mx - 1e-12) out.push(a); });
+    return out;
+  }
+  function policy(k) { return bestActions(qRow(k))[0]; }
+  // Values still at their tiny random start: never tried here.
+  function untouched(row) { return row.every(function (v) { return v >= 0 && v < 0.0101; }); }
+  function evaluate() { return raceEvaluate(policy, track, EVAL_CAP); }
+
+  function fmt(v) {
+    const a = Math.abs(v);
+    let s;
+    if (a === 0) s = '0';
+    else if (a >= 10) s = a.toFixed(1);
+    else if (a >= 1) s = a.toFixed(2);
+    else if (a >= 0.001) s = a.toPrecision(3);
+    else s = a.toExponential(1);
+    return (v < 0 ? '−' : '') + s.replace('-', '−');
+  }
+  function count(n) { return n.toLocaleString('en-US'); }
+  function accelName(a) {
+    const acc = accelOf(a);
+    if (!acc.ax && !acc.ay) return 'coasted';
+    const v = acc.ay > 0 ? 'up' : acc.ay < 0 ? 'down' : '', h = acc.ax > 0 ? 'right' : acc.ax < 0 ? 'left' : '';
+    return 'accelerated ' + (v && h ? v + '-' + h : v || h);
+  }
+  function speedText(car) { return '→' + car.vx + ' ↑' + car.vy; }
+
+  // ---------- game state ----------
+  let phase = 'training';   // training | ready | race | over
+  let cars = null;          // { human, machine }
+  let startCell = -1;
+  let turn = 0;
+  let animT0 = 0;
+  let pending = null;       // the result to announce once the last move has been drawn
+  let lastMachine = null;
+  let lastSlip = false;
+  let result = null;
+  let demo = null;          // the learner's practice lap during training
+  let demoClock = 0;
+  let history = [];
+  let lastEval = null;
+  let pointer = null;       // pointer position in track squares
+  let hoverDot = -1;        // acceleration under the pointer
+  let particles = [];
+
+  function randomStart() { return track.start[Math.floor(Math.random() * track.start.length)]; }
+  function center(cell) { return { x: track.xy[cell].x + 0.5, y: track.xy[cell].y + 0.5 }; }
+  function newCar(who, cell) {
+    const c = center(cell);
+    return {
+      who: who, cell: cell, x: track.xy[cell].x, y: track.xy[cell].y, vx: 0, vy: 0, heading: -Math.PI / 2,
+      trail: [[c]], crashes: [], anim: null, finished: false
+    };
+  }
+  function carState(car) { return stateIndex(car.cell, car.vx, car.vy); }
+  function animating() { return performance.now() - animT0 < MOVE_MS; }
+
+  // Apply one move to a car and set up its animation.
+  function drive(car, a) {
+    const res = move(track, car, a);
+    const from = { x: car.x + 0.5, y: car.y + 0.5 };
+    const to = { x: res.px, y: res.py };
+    if (res.vx || res.vy) car.heading = Math.atan2(-res.vy, res.vx);
+    car.anim = { from: from, to: to, out: res.out, restart: -1 };
+    if (res.out === 'crash') {
+      const cell = randomStart();
+      car.anim.restart = cell;
+      car.cell = cell; car.x = track.xy[cell].x; car.y = track.xy[cell].y; car.vx = 0; car.vy = 0;
+    } else if (res.out === 'finish') {
+      car.finished = true; car.vx = res.vx; car.vy = res.vy;
+    } else {
+      const p = stateOf(track, res.next);
+      car.cell = p.cell; car.x = p.x; car.y = p.y; car.vx = res.vx; car.vy = res.vy;
+    }
+    return res;
+  }
+
+  // Once the animation is over, the move becomes part of the trail.
+  function settle(car) {
+    const an = car.anim;
+    if (!an) return;
+    car.anim = null;
+    car.trail[car.trail.length - 1].push(an.to);
+    if (an.out === 'crash') {
+      car.heading = -Math.PI / 2;
+      car.crashes.push(an.to);
+      car.trail.push([center(an.restart)]);
+      burst(an.to, C.neg, 16);
+    } else if (an.out === 'finish') {
+      burst(an.to, car.who === 'human' ? C.human : C.machine, 24);
+    }
+  }
+
+  function carPos(car) {
+    const an = car.anim;
+    if (an) {
+      const u = Math.min(1, (performance.now() - animT0) / MOVE_MS);
+      const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2;
+      return { x: an.from.x + (an.to.x - an.from.x) * e, y: an.from.y + (an.to.y - an.from.y) * e };
+    }
+    if (car.finished) { const t = car.trail[car.trail.length - 1]; return t[t.length - 1]; }
+    return { x: car.x + 0.5, y: car.y + 0.5 };
+  }
+
+  // ---------- DOM ----------
+  const $ = function (id) { return document.getElementById(id); };
+  const cv = $('cv');
+  const ctx = cv.getContext('2d');
+  const docks = { training: $('dock-train'), ready: $('dock-ready'), race: $('dock-race'), over: $('dock-over') };
+
+  function el(name, attrs, parent) {
+    const node = document.createElementNS(SVGNS, name);
+    for (const key in attrs) node.setAttribute(key, attrs[key]);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  // ---------- sprites ----------
+  let S = 1, DPR = 1, SPR = null, chalk = null, OX = 0, OY = 0;
+  function PX(x) { return (OX + x) * S; }
+  function PY(y) { return (OY + y) * S; }
+
+  function resize() {
+    DPR = Math.min(2.5, window.devicePixelRatio || 1);
+    const w = Math.max(320, Math.round(cv.clientWidth * DPR));
+    cv.width = w;
+    cv.height = w;
+    S = w / VIEW;
+    buildSprites();
+  }
+
+  function carSprite(color) {
+    return chalk.sprite(1.9 * S, 1.3 * S, function (g) {
+      g.scale(S, S);
+      g.translate(0.95, 0.65);
+      g.fillStyle = C.board;
+      [[-0.38, -0.42], [0.36, -0.42], [-0.38, 0.3], [0.36, 0.3]].forEach(function (w) { g.fillRect(w[0] - 0.14, w[1], 0.3, 0.12); });
+      g.beginPath(); g.roundRect(-0.66, -0.3, 1.24, 0.6, 0.2);
+      g.fillStyle = color; g.fill();
+      g.lineWidth = 0.06; g.strokeStyle = C.board; g.stroke();
+      g.beginPath(); g.roundRect(0.56, -0.38, 0.16, 0.76, 0.06);
+      g.fillStyle = color; g.fill(); g.stroke();
+      g.beginPath(); g.ellipse(-0.06, 0, 0.2, 0.15, 0, 0, Math.PI * 2);
+      g.fillStyle = C.board; g.fill();
+      g.beginPath(); g.moveTo(-0.62, 0); g.lineTo(-0.3, 0); g.moveTo(0.18, 0); g.lineTo(0.52, 0);
+      g.strokeStyle = 'rgba(255, 255, 255, 0.55)'; g.lineWidth = 0.08; g.stroke();
+    }, 0.35);
+  }
+
+  function buildSprites() {
+    chalk = createChalk(DPR);
+    OX = (VIEW - track.cols) / 2;
+    OY = (VIEW - track.rows) / 2;
+    const map = track.map;
+    const off = function (x, y) { return x < 0 || y < 0 || x >= track.cols || y >= track.rows || map[y][x] === '#'; };
+    SPR = {};
+    SPR.track = chalk.sprite(VIEW * S, VIEW * S, function (g) {
+      g.scale(S, S);
+      g.translate(OX, OY);
+      // off the track: hatched
+      g.beginPath();
+      for (let y = 0; y < track.rows; y++) for (let x = 0; x < track.cols; x++) if (map[y][x] === '#') g.rect(x, y, 1, 1);
+      g.fillStyle = 'rgba(236, 238, 228, 0.03)'; g.fill();
+      chalk.hatch(g, { x: 0, y: 0, w: track.cols, h: track.rows }, C.dim, 0.42, 0.06, 0.32, Math.PI / 4);
+      // faint grid on the track
+      g.beginPath();
+      for (let y = 0; y < track.rows; y++) {
+        for (let x = 0; x < track.cols; x++) {
+          if (map[y][x] === '#') continue;
+          g.moveTo(x, y); g.lineTo(x + 1, y); g.moveTo(x, y); g.lineTo(x, y + 1);
+        }
+      }
+      chalk.stroke(g, C.chalk, 0.035, 0.18);
+      // finish: chequered
+      for (let y = 0; y < track.rows; y++) {
+        for (let x = 0; x < track.cols; x++) {
+          if (map[y][x] !== 'F') continue;
+          g.fillStyle = 'rgba(236, 238, 228, 0.7)';
+          g.fillRect(x, y, 0.5, 0.5); g.fillRect(x + 0.5, y + 0.5, 0.5, 0.5);
+        }
+      }
+      // start line
+      g.beginPath();
+      track.start.forEach(function (cell) { const p = track.xy[cell]; g.rect(p.x + 0.08, p.y + 0.08, 0.84, 0.84); });
+      g.fillStyle = 'rgba(143, 198, 236, 0.07)'; g.fill();
+      g.beginPath();
+      track.start.forEach(function (cell) { const p = track.xy[cell]; g.moveTo(p.x, p.y + 0.06); g.lineTo(p.x + 1, p.y + 0.06); });
+      g.setLineDash([0.22, 0.18]);
+      chalk.stroke(g, C.chalk, 0.08, 0.85);
+      g.setLineDash([]);
+      // kerbs on every track edge that meets the wall
+      const kerbs = [[], []];
+      for (let y = 0; y < track.rows; y++) {
+        for (let x = 0; x < track.cols; x++) {
+          if (map[y][x] === '#') continue;
+          const k = kerbs[(x + y) % 2];
+          if (off(x - 1, y)) k.push([x, y, x, y + 1]);
+          if (off(x + 1, y)) k.push([x + 1, y, x + 1, y + 1]);
+          if (off(x, y - 1)) k.push([x, y, x + 1, y]);
+          if (off(x, y + 1)) k.push([x, y + 1, x + 1, y + 1]);
+        }
+      }
+      [[kerbs[0], C.neg], [kerbs[1], C.chalk]].forEach(function (set) {
+        g.beginPath();
+        set[0].forEach(function (s) { g.moveTo(s[0], s[1]); g.lineTo(s[2], s[3]); });
+        chalk.stroke(g, set[1], 0.16, 0.9);
+      });
+    }, 0.6);
+    SPR.car = { human: carSprite(C.human), machine: carSprite(C.machine) };
+  }
+
+  // ---------- drawing ----------
+  function drawLabels() {
+    const s0 = track.xy[track.start[0]], s1 = track.xy[track.start[track.start.length - 1]];
+    blit(ctx, chalk.text('start', Math.round(0.8 * S), C.chalk, 680), PX((s0.x + s1.x + 1) / 2), PY(s0.y + 1.55), 0.85);
+    const fin = track.xy.filter(function (p) { return track.map[p.y][p.x] === 'F'; });
+    const fy = (fin[0].y + fin[fin.length - 1].y + 1) / 2;
+    const img = chalk.text('finish', Math.round(0.8 * S), C.chalk, 680);
+    ctx.save();
+    ctx.translate(PX(track.cols + 0.5), PY(fy));
+    ctx.rotate(Math.PI / 2);
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.restore();
+  }
+
+  function focusVelocity() {
+    if (phase === 'training' && demo) return demo.car;
+    if (cars && phase !== 'ready') return cars.machine;
+    return { vx: 0, vy: 0 };
+  }
+
+  function drawPolicy() {
+    const v = focusVelocity();
+    const cells = [];
+    let lo = Infinity, hi = -Infinity;
+    track.xy.forEach(function (p, cell) {
+      const row = qRow(stateIndex(cell, v.vx, v.vy));
+      if (untouched(row)) return;
+      const best = Math.max.apply(null, row);
+      lo = Math.min(lo, best); hi = Math.max(hi, best);
+      cells.push({ p: p, row: row, best: best });
+    });
+    ctx.save();
+    ctx.lineCap = 'round';
+    cells.forEach(function (c) {
+      const t = hi > lo ? (c.best - lo) / (hi - lo) : 1;
+      ctx.fillStyle = 'rgba(169, 222, 178, ' + (0.05 + 0.4 * t * t).toFixed(3) + ')';
+      ctx.fillRect(PX(c.p.x) + 1, PY(c.p.y) + 1, S - 2, S - 2);
+      const acc = accelOf(bestActions(c.row)[0]);
+      const cx = PX(c.p.x + 0.5), cy = PY(c.p.y + 0.5);
+      ctx.strokeStyle = C.chalk; ctx.fillStyle = C.chalk;
+      ctx.globalAlpha = 0.75;
+      ctx.lineWidth = Math.max(1, 0.07 * S);
+      if (!acc.ax && !acc.ay) { ctx.beginPath(); ctx.arc(cx, cy, 0.08 * S, 0, Math.PI * 2); ctx.fill(); }
+      else {
+        const d = Math.hypot(acc.ax, acc.ay), ux = acc.ax / d, uy = -acc.ay / d, r = 0.3 * S;
+        ctx.beginPath();
+        ctx.moveTo(cx - ux * r, cy - uy * r); ctx.lineTo(cx + ux * r, cy + uy * r);
+        ctx.moveTo(cx + ux * r - (ux - uy * 0.6) * r * 0.55, cy + uy * r - (uy + ux * 0.6) * r * 0.55);
+        ctx.lineTo(cx + ux * r, cy + uy * r);
+        ctx.lineTo(cx + ux * r - (ux + uy * 0.6) * r * 0.55, cy + uy * r - (uy - ux * 0.6) * r * 0.55);
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    });
+    ctx.restore();
+  }
+
+  function drawTrail(car, dash) {
+    const color = car.who === 'human' ? C.human : C.machine;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = Math.max(1.4, 0.09 * S);
+    ctx.lineCap = 'round';
+    ctx.setLineDash(dash.map(function (d) { return d * S; }));
+    ctx.globalAlpha = 0.75;
+    car.trail.forEach(function (seg, i) {
+      const pts = seg.slice();
+      if (i === car.trail.length - 1 && car.anim) pts.push(carPos(car));
+      ctx.beginPath();
+      pts.forEach(function (p, j) { ctx[j ? 'lineTo' : 'moveTo'](PX(p.x), PY(p.y)); });
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    car.trail.forEach(function (seg) {
+      seg.forEach(function (p) { ctx.beginPath(); ctx.arc(PX(p.x), PY(p.y), 0.11 * S, 0, Math.PI * 2); ctx.fill(); });
+    });
+    ctx.strokeStyle = C.neg;
+    ctx.globalAlpha = 0.9;
+    car.crashes.forEach(function (p) {
+      const r = 0.28 * S;
+      ctx.beginPath();
+      ctx.moveTo(PX(p.x) - r, PY(p.y) - r); ctx.lineTo(PX(p.x) + r, PY(p.y) + r);
+      ctx.moveTo(PX(p.x) + r, PY(p.y) - r); ctx.lineTo(PX(p.x) - r, PY(p.y) + r);
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function drawCar(car, shift) {
+    const p = carPos(car);
+    const img = SPR.car[car.who];
+    ctx.save();
+    ctx.translate(PX(p.x + shift), PY(p.y));
+    ctx.rotate(car.heading);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.restore();
+  }
+
+  // The nine places your car can go next.
+  function candidates() {
+    const car = cars.human;
+    const out = [];
+    for (let a = 0; a < RACE.ACTIONS; a++) {
+      const res = move(track, car, a);
+      out.push({ a: a, x: car.x + 0.5 + res.vx, y: car.y + 0.5 - res.vy, res: res });
+    }
+    return out;
+  }
+
+  function drawCandidates() {
+    const list = candidates();
+    const car = cars.human;
+    ctx.save();
+    ctx.lineCap = 'round';
+    list.forEach(function (c) {
+      const x = PX(c.x), y = PY(c.y), r = 0.24 * S, on = c.a === hoverDot;
+      if (on) {
+        ctx.strokeStyle = c.res.out === 'crash' ? C.neg : C.human;
+        ctx.lineWidth = Math.max(1.2, 0.07 * S);
+        ctx.setLineDash([0.18 * S, 0.14 * S]);
+        ctx.beginPath(); ctx.moveTo(PX(car.x + 0.5), PY(car.y + 0.5)); ctx.lineTo(PX(c.res.px), PY(c.res.py)); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.lineWidth = Math.max(1.2, (on ? 0.1 : 0.07) * S);
+      if (c.res.out === 'crash') {
+        ctx.strokeStyle = C.neg;
+        ctx.beginPath();
+        ctx.moveTo(x - r * 0.8, y - r * 0.8); ctx.lineTo(x + r * 0.8, y + r * 0.8);
+        ctx.moveTo(x + r * 0.8, y - r * 0.8); ctx.lineTo(x - r * 0.8, y + r * 0.8);
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = c.res.out === 'finish' ? C.pos : C.human;
+        ctx.fillStyle = on ? 'rgba(143, 198, 236, 0.45)' : 'rgba(143, 198, 236, 0.12)';
+        ctx.beginPath(); ctx.arc(x, y, r * (on ? 1.25 : 1), 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      }
+    });
+    ctx.restore();
+  }
+
+  function halo(x, y, rx, ry) {
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, rx);
+    gr.addColorStop(0, 'rgba(29, 58, 50, 0.85)');
+    gr.addColorStop(0.6, 'rgba(29, 58, 50, 0.55)');
+    gr.addColorStop(1, 'rgba(29, 58, 50, 0)');
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-x, -y);
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(x, y, rx, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function caption(text, size, color) {
+    const x = VIEW / 2 * S, y = VIEW * 0.42 * S;
+    halo(x, y, text.length * size * 0.32 * S + 3 * S, size * 1.3 * S);
+    blit(ctx, chalk.text(text, Math.round(size * S), color, 740), x, y);
+  }
+
+  function drawEffects(dt) {
+    particles.forEach(function (p) {
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.94; p.vy *= 0.94; p.life -= dt;
+      ctx.globalAlpha = Math.max(0, p.life / p.max) * 0.85;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(PX(p.x), PY(p.y), p.r * S, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    particles = particles.filter(function (p) { return p.life > 0; });
+  }
+  function burst(at, color, n) {
+    if (reduceMotion) return;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, v = 1.5 + Math.random() * 4;
+      particles.push({ x: at.x, y: at.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 0.05 + Math.random() * 0.08, life: 0.6, max: 0.6, color: i % 3 ? color : C.chalk });
+    }
+  }
+
+  function draw(dt) {
+    if (!SPR) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.drawImage(SPR.track, 0, 0);
+    drawLabels();
+    if (overlayVisible()) drawPolicy();
+    if (phase === 'ready' && pointer) {
+      const c = cellAt(pointer);
+      if (c !== -1 && track.xy[c].start) {
+        ctx.strokeStyle = C.human; ctx.lineWidth = Math.max(1.5, 0.08 * S);
+        ctx.strokeRect(PX(track.xy[c].x) + 2, PY(track.xy[c].y) + 2, S - 4, S - 4);
+      }
+    }
+    if (phase === 'training' && demo) {
+      drawTrail(demo.car, [0.3, 0.22]);
+      drawCar(demo.car, 0);
+    } else if (cars) {
+      drawTrail(cars.machine, [0.3, 0.22]);
+      drawTrail(cars.human, [0.02, 0.24]);
+      if (phase === 'race' && !animating() && !pending) drawCandidates();
+      const a = carPos(cars.human), b = carPos(cars.machine);
+      const close = Math.hypot(a.x - b.x, a.y - b.y) < 0.6 ? 0.22 : 0;
+      drawCar(cars.machine, close);
+      drawCar(cars.human, -close);
+    }
+    drawEffects(dt);
+    if (phase === 'ready') caption('Pick a start square', 1.5, C.chalk);
+    if (phase === 'over') caption(result === 'draw' ? 'Draw' : result === 'human' ? 'You win' : 'The machine wins', 1.8,
+      result === 'draw' ? C.chalk : result === 'human' ? C.human : C.machine);
+  }
+
+  // ---------- side panel ----------
+  function overlayVisible() { return !!trainer && (showQ || phase === 'training'); }
+
+  let compassKey = '';
+  function renderCompass() {
+    const boxes = document.querySelectorAll('#compass .q');
+    const v = focusVelocity();
+    let k = null, where = null, title = 'Q-values';
+    const hc = pointer ? cellAt(pointer) : -1;
+    if (trainer && hc !== -1) {
+      k = stateIndex(hc, v.vx, v.vy); where = track.xy[hc]; title = 'Q-values in the square you point at';
+    } else if (trainer && phase === 'training' && demo && !demo.car.finished) {
+      k = carState(demo.car); where = demo.car; title = 'Q-values of the practice car';
+    } else if (trainer && cars && (phase === 'race' || phase === 'over') && !cars.machine.finished) {
+      k = carState(cars.machine); where = cars.machine; title = 'Q-values of the machine\'s car';
+    }
+    const row = k === null ? null : qRow(k);
+    const key = title + '|' + k + '|' + (row ? row.map(fmt).join(',') : '');
+    if (key === compassKey) return;
+    compassKey = key;
+    $('compass-title').textContent = title;
+    if (k === null) {
+      $('compass-center').textContent = '';
+      boxes.forEach(function (b) { b.textContent = ''; b.classList.remove('best'); b.style.color = ''; });
+      $('compass-note').textContent = trainer ? 'Point at a square of the track to read the machine\'s values there.' : '';
+      return;
+    }
+    const best = bestActions(row);
+    const fresh = untouched(row);
+    boxes.forEach(function (b) {
+      const a = Number(b.dataset.a);
+      b.textContent = fmt(row[a]);
+      b.style.color = best.indexOf(a) !== -1 && !fresh ? 'var(--pos)' : 'var(--chalk)';
+      b.classList.toggle('best', best.indexOf(a) !== -1 && !fresh);
+    });
+    $('compass-center').textContent = 'state ' + k;
+    $('compass-note').textContent = 'Square (' + where.x + ', ' + where.y + ') at velocity ' + v.vx + ' right, ' + v.vy + ' up. ' + (fresh
+      ? 'It has never been here at this velocity.'
+      : 'Each value is the return it expects, close to minus the turns left. The grid is laid out like the accelerations; the outlined one is its pick.');
+  }
+
+  function renderPolicyFacts(done) {
+    if (!trainer || !lastEval) {
+      $('fact-policy').textContent = '';
+      $('fact-training').textContent = '';
+      return;
+    }
+    const k = track.start.length;
+    const crashes = lastEval.crashes === 1 ? '1 crash' : lastEval.crashes + ' crashes';
+    $('fact-policy').textContent = lastEval.finished === 0
+      ? 'From the ' + k + ' start squares, the greedy car does not finish within ' + EVAL_CAP + ' turns' + (done ? '' : ' yet') + '. The fastest possible lap takes ' + lastEval.best.toFixed(1) + ' turns on average.'
+      : 'From the ' + k + ' start squares, the greedy car finishes ' + (lastEval.finished === k ? 'every time' : lastEval.finished + ' times') + ', in ' +
+        lastEval.turns.toFixed(1) + ' turns on average with ' + crashes + '. The fastest possible lap takes ' + lastEval.best.toFixed(1) + '.';
+    $('fact-training').textContent = (done ? 'Trained for ' : 'So far ') + count(Math.round(trainer.progress() * params.steps)) +
+      ' steps in ' + count(trainer.episodes()) + ' laps, visiting ' + count(trainer.visited()) + ' of ' + count(track.nStates) + ' states.';
+  }
+
+  function renderStatus(title, html) {
+    $('status-title').textContent = title;
+    $('status-text').innerHTML = html;
+  }
+
+  function renderRace() {
+    $('turn').textContent = turn;
+    $('speed-human').textContent = cars ? speedText(cars.human) : '→0 ↑0';
+    $('speed-machine').textContent = cars ? speedText(cars.machine) : '→0 ↑0';
+    document.querySelectorAll('.pad button').forEach(function (b) { b.disabled = phase !== 'race'; });
+  }
+
+  function renderScore() {
+    $('score-human').textContent = score.human;
+    $('score-machine').textContent = score.machine;
+    $('score-draw').textContent = score.draw;
+  }
+
+  function showDock(which) {
+    docks.training.hidden = which !== 'training';
+    docks.ready.hidden = which !== 'ready';
+    docks.race.hidden = which !== 'race' && which !== 'over';
+    docks.over.hidden = which !== 'over';
+  }
+
+  function renderParams() {
+    const m = methodOf(params.method);
+    $('method').value = m.key;
+    $('method-info').textContent = m.info;
+    $('p-alpha').value = params.alpha;
+    $('p-gamma').value = params.gamma;
+    $('p-lambda').value = params.lambda;
+    $('p-steps').value = params.steps;
+    $('r-step').value = params.rewards.step;
+    $('r-crash').value = params.rewards.crash;
+    $('r-finish').value = params.rewards.finish;
+    $('field-lambda').hidden = m.key !== 'sarsa-lambda' && m.key !== 'q-lambda';
+    const slip = SLIPS[slipKey].p;
+    $('track-info').textContent = track.cols + ' × ' + track.rows + ' squares with ' + track.start.length + ' start squares; from rest, the fastest lap takes ' +
+      Math.min.apply(null, track.start.map(function (c) { return track.best[stateIndex(c, 0, 0)]; })) + ' turns. ' +
+      (slip ? 'On each turn there is a ' + Math.round(slip * 100) + '% chance that the acceleration does not happen, in training and, for both cars at once, in the race. ' : 'Every acceleration happens as chosen. ') +
+      'Changing either retrains the car for ' + count(TRACKS[trackKey].steps) + ' steps.';
+  }
+
+  // ---------- chart ----------
+  function drawChart() {
+    const svg = $('chart-svg');
+    svg.textContent = '';
+    const w = Math.max(200, svg.clientWidth || 320), h = 86, top = 8, bottom = 70, left = 38;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    const x = function (p) { return left + p * (w - left); };
+    const y = function (v) { return bottom - v * (bottom - top); };
+    el('line', { class: 'axis', x1: left, y1: bottom, x2: w, y2: bottom }, svg);
+    el('line', { class: 'axis', x1: left, y1: top, x2: w, y2: top }, svg);
+    el('line', { class: 'eps-line', x1: x(EXPLORE_SHARE), y1: top, x2: x(EXPLORE_SHARE), y2: bottom }, svg);
+    const t100 = el('text', { x: left - 6, y: top + 4, 'text-anchor': 'end' }, svg); t100.textContent = '100%';
+    const t0 = el('text', { x: left - 6, y: bottom + 4, 'text-anchor': 'end' }, svg); t0.textContent = '0%';
+    const te = el('text', { x: x(EXPLORE_SHARE), y: h - 2, 'text-anchor': 'middle' }, svg); te.textContent = 'ε = 0';
+    const ts = el('text', { x: w, y: h - 2, 'text-anchor': 'end' }, svg); ts.textContent = 'all steps';
+    if (history.length < 2) return;
+    const pts = history.map(function (p) { return x(p.x).toFixed(1) + ',' + y(p.v).toFixed(1); });
+    el('polygon', { class: 'area', points: left + ',' + bottom + ' ' + pts.join(' ') + ' ' + x(history[history.length - 1].x).toFixed(1) + ',' + bottom }, svg);
+    el('polyline', { class: 'curve', points: pts.join(' ') }, svg);
+  }
+
+  // ---------- training ----------
+  function startDemo() {
+    demo = { car: newCar('machine', randomStart()), turns: 0 };
+  }
+
+  function demoTurn() {
+    if (demo.car.finished || demo.turns >= 60) { startDemo(); return; }
+    const a = Math.random() < SLIPS[slipKey].p ? COAST : policy(carState(demo.car));
+    animT0 = performance.now();
+    drive(demo.car, a);
+    demo.turns++;
+  }
+
+  function train() {
+    phase = 'training';
+    cars = null;
+    pending = null;
+    lastMachine = null;
+    result = null;
+    particles = [];
+    trainer = createTrainer(makeRaceEnv(track, params.rewards, SLIPS[slipKey].p, Math.random, EPISODE_CAP), {
+      method: params.method, alpha: params.alpha, gamma: params.gamma, lambda: params.lambda,
+      steps: params.steps, rng: Math.random
+    });
+    lastEval = evaluate();
+    history = [{ x: 0, v: lastEval.eff }];
+    startDemo();
+    showDock('training');
+    $('retrain').disabled = true;
+    $('train-label').textContent = 'Training with ' + methodOf(params.method).name;
+    drawChart();
+    renderRace();
+    if (reduceMotion) finishNow();
+  }
+
+  function trainFrame() {
+    const done = trainer.run(Math.ceil(params.steps / TRAIN_FRAMES));
+    lastEval = evaluate();
+    history.push({ x: trainer.progress(), v: lastEval.eff });
+    const pct = Math.round(trainer.progress() * 100);
+    $('train-bar').style.width = pct + '%';
+    $('train-pct').textContent = pct + '%';
+    renderStatus('Training', methodOf(params.method).name + ', lap ' + count(trainer.episodes()) + ', ε = ' + trainer.epsilon().toFixed(2) +
+      '. On the board, the car practises with what it knows so far.');
+    drawChart();
+    renderPolicyFacts(done);
+    if (done) finishTraining();
+  }
+
+  function finishNow() {
+    if (phase !== 'training' || !trainer) return;
+    trainer.run(params.steps);
+    lastEval = evaluate();
+    history.push({ x: 1, v: lastEval.eff });
+    drawChart();
+    finishTraining();
+  }
+
+  function finishTraining() {
+    $('retrain').disabled = false;
+    $('train-bar').style.width = '100%';
+    renderPolicyFacts(true);
+    ready();
+  }
+
+  // ---------- race ----------
+  function ready() {
+    phase = 'ready';
+    demo = null;
+    cars = null;
+    pending = null;
+    result = null;
+    lastMachine = null;
+    particles = [];
+    turn = 0;
+    showDock('ready');
+    renderStatus('Pick a start', 'You drive the <span class="tag human">blue</span> car, the machine the <span class="tag machine">yellow</span> one. Click a square on the start line; both cars start there at rest.');
+    renderRace();
+  }
+
+  function startRace(cell) {
+    if (phase !== 'ready' && phase !== 'over') return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    startCell = cell;
+    cars = { human: newCar('human', cell), machine: newCar('machine', cell) };
+    turn = 0;
+    pending = null;
+    result = null;
+    lastMachine = null;
+    particles = [];
+    phase = 'race';
+    showDock('race');
+    renderStatus('Race', 'Turn 1. Pick one of the nine dots: each is your velocity plus one acceleration.');
+    renderRace();
+  }
+
+  function machineAct() {
+    const row = qRow(carState(cars.machine));
+    let a, kind;
+    if (Math.random() < raceEps) {
+      a = Math.floor(Math.random() * RACE.ACTIONS);
+      kind = 'explore';
+    } else {
+      const set = bestActions(row);
+      a = set[Math.floor(Math.random() * set.length)];
+      kind = 'greedy';
+    }
+    lastMachine = { a: a, q: row[a], kind: kind };
+    return a;
+  }
+
+  function lastMoveText() {
+    if (!lastMachine) return '';
+    if (lastSlip) return ' Slip: neither acceleration counted this turn.';
+    const name = accelName(lastMachine.a);
+    return lastMachine.kind === 'explore' ? ' The machine ' + name + ' at random (ε).' : ' The machine ' + name + ', Q = ' + fmt(lastMachine.q) + '.';
+  }
+
+  function playTurn(a) {
+    if (phase !== 'race' || animating() || pending) return;
+    lastSlip = Math.random() < SLIPS[slipKey].p;
+    const am = machineAct();
+    animT0 = performance.now();
+    const rh = drive(cars.human, lastSlip ? COAST : a);
+    const rm = drive(cars.machine, lastSlip ? COAST : am);
+    turn++;
+    renderRace();
+    const crashes = (rh.out === 'crash' ? ' You crashed and go back to the start line.' : '') + (rm.out === 'crash' ? ' The machine crashed and goes back to the start line.' : '');
+    if (rh.out === 'finish' && rm.out === 'finish') pending = ['draw', 'You both crossed the line on turn ' + turn + '.'];
+    else if (rh.out === 'finish') pending = ['human', 'You crossed the line on turn ' + turn + '.'];
+    else if (rm.out === 'finish') pending = ['machine', 'The machine crossed the line on turn ' + turn + '.'];
+    else if (turn >= MAX_TURNS) pending = ['draw', 'Nobody finished in ' + MAX_TURNS + ' turns.'];
+    renderStatus('Race', 'Turn ' + turn + '.' + lastMoveText() + crashes);
+  }
+
+  function finish(who, why) {
+    phase = 'over';
+    result = who;
+    score[who] += 1;
+    save();
+    renderScore();
+    renderRace();
+    const title = who === 'draw' ? 'Draw' : who === 'human' ? 'You win' : 'The machine wins';
+    $('end-title').textContent = title;
+    renderStatus(title, why + lastMoveText());
+    showDock('over');
+    $('again').focus({ preventScroll: true });
+  }
+
+  // ---------- loop ----------
+  let lastT = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.1, Math.max(0, (now - lastT) / 1000));
+    lastT = now;
+    if (phase === 'training') {
+      trainFrame();
+      demoClock += dt * 1000;
+      if (phase === 'training' && demoClock >= DEMO_MS) {
+        demoClock = 0;
+        settle(demo.car);
+        demoTurn();
+      }
+    }
+    if (!animating()) {
+      if (cars) { settle(cars.human); settle(cars.machine); }
+      if (demo) settle(demo.car);
+      if (pending) { const p = pending; pending = null; finish(p[0], p[1]); }
+    }
+    draw(dt);
+    renderCompass();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- controls ----------
+  const KEYS = {
+    q: 6, w: 7, e: 8, a: 3, s: 4, d: 5, z: 0, x: 1, c: 2,
+    7: 6, 8: 7, 9: 8, 4: 3, 5: 4, 6: 5, 1: 0, 2: 1, 3: 2,
+    ArrowUp: 7, ArrowDown: 1, ArrowLeft: 3, ArrowRight: 5, ' ': 4
+  };
+  document.addEventListener('keydown', function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+    const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (!(key in KEYS)) return;
+    if (phase === 'race') { e.preventDefault(); playTurn(KEYS[key]); }
+    else if (phase === 'ready' && key === ' ') { e.preventDefault(); startRace(randomStart()); }
+  });
+
+  function toTrack(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * VIEW - OX, y: (e.clientY - r.top) / r.height * VIEW - OY };
+  }
+  function cellAt(p) {
+    const x = Math.floor(p.x), y = Math.floor(p.y);
+    if (x < 0 || y < 0 || x >= track.cols || y >= track.rows) return -1;
+    return track.index[y * track.cols + x];
+  }
+  function dotAt(p) {
+    if (phase !== 'race' || !cars) return -1;
+    let best = -1, bestD = 0.5;
+    candidates().forEach(function (c) {
+      const d = Math.hypot(p.x - c.x, p.y - c.y);
+      if (d < bestD) { bestD = d; best = c.a; }
+    });
+    return best;
+  }
+  cv.addEventListener('pointermove', function (e) {
+    pointer = toTrack(e);
+    hoverDot = dotAt(pointer);
+    cv.style.cursor = hoverDot !== -1 || (phase === 'ready' && cellAt(pointer) !== -1 && track.xy[cellAt(pointer)].start) ? 'pointer' : '';
+  });
+  cv.addEventListener('pointerleave', function () { pointer = null; hoverDot = -1; });
+  cv.addEventListener('pointerdown', function (e) {
+    const p = toTrack(e);
+    if (phase === 'ready') {
+      const c = cellAt(p);
+      if (c !== -1 && track.xy[c].start) startRace(c);
+      return;
+    }
+    const a = dotAt(p);
+    if (a !== -1) { e.preventDefault(); playTurn(a); }
+  });
+
+  document.querySelectorAll('.pad button').forEach(function (b) {
+    b.addEventListener('click', function () { playTurn(Number(b.dataset.a)); });
+  });
+
+  $('random-start').addEventListener('click', function () { startRace(randomStart()); });
+  $('again').addEventListener('click', function () { startRace(startCell); });
+  $('new-start').addEventListener('click', ready);
+  $('finish-now').addEventListener('click', finishNow);
+  $('retrain').addEventListener('click', train);
+  $('new-race').addEventListener('click', function () { if (phase !== 'training') ready(); });
+  $('reset-score').addEventListener('click', function () {
+    score.human = score.machine = score.draw = 0;
+    save();
+    renderScore();
+  });
+
+  function radios(containerId, name, options, current, onPick) {
+    const box = $(containerId);
+    Object.keys(options).forEach(function (key) {
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = name;
+      input.id = name + '-' + key;
+      input.value = key;
+      input.checked = key === current;
+      const label = document.createElement('label');
+      label.htmlFor = input.id;
+      label.textContent = options[key].name;
+      input.addEventListener('change', function () { if (input.checked) onPick(key); });
+      box.appendChild(input);
+      box.appendChild(label);
+    });
+  }
+  radios('track-picker', 'track', TRACKS, trackKey, function (key) {
+    trackKey = key;
+    track = buildTrack(TRACKS[key]);
+    params.steps = TRACKS[key].steps;
+    $('state-count').textContent = count(track.nStates);
+    buildSprites();
+    renderParams();
+    save();
+    train();
+  });
+  radios('slip-picker', 'slip', SLIPS, slipKey, function (key) {
+    slipKey = key;
+    renderParams();
+    save();
+    train();
+  });
+
+  const methodSel = $('method');
+  METHODS.forEach(function (m) {
+    const o = document.createElement('option');
+    o.value = m.key;
+    o.textContent = m.name;
+    methodSel.appendChild(o);
+  });
+  methodSel.addEventListener('change', function () {
+    params.method = methodSel.value;
+    params.alpha = methodOf(params.method).alpha;
+    renderParams();
+    save();
+    train();
+  });
+
+  function bindNumber(id, lo, hi, apply) {
+    const input = $(id);
+    input.addEventListener('change', function () {
+      const v = parseFloat(input.value);
+      if (!isFinite(v) || v < lo || v > hi) { renderParams(); return; }
+      apply(v);
+      renderParams();
+      save();
+      train();
+    });
+  }
+  bindNumber('p-alpha', 0.01, 1, function (v) { params.alpha = v; });
+  bindNumber('p-gamma', 0, 1, function (v) { params.gamma = v; });
+  bindNumber('p-lambda', 0, 1, function (v) { params.lambda = v; });
+  bindNumber('p-steps', 1000, 10000000, function (v) { params.steps = Math.round(v); });
+  bindNumber('r-step', -1e6, 1e6, function (v) { params.rewards.step = v; });
+  bindNumber('r-crash', -1e6, 1e6, function (v) { params.rewards.crash = v; });
+  bindNumber('r-finish', -1e6, 1e6, function (v) { params.rewards.finish = v; });
+
+  const showQEl = $('show-q');
+  showQEl.checked = showQ;
+  showQEl.addEventListener('change', function () { showQ = showQEl.checked; save(); });
+
+  const epsEl = $('eps');
+  function renderEps() { $('eps-out').textContent = 'ε = ' + raceEps.toFixed(2); }
+  epsEl.value = String(raceEps);
+  epsEl.addEventListener('input', function () { raceEps = parseFloat(epsEl.value); renderEps(); save(); });
+
+  // ---------- boot ----------
+  $('state-count').textContent = count(track.nStates);
+  if (window.ResizeObserver) new ResizeObserver(function () { if (Math.round(cv.clientWidth * Math.min(2.5, window.devicePixelRatio || 1)) !== cv.width) resize(); }).observe(cv);
+  resize();
+  renderEps();
+  renderScore();
+  renderParams();
+  train();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
