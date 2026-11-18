@@ -1,0 +1,1905 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Breakout Duel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page: #12241E;
+    --board: #1D3A32;
+    --board-edge: #2C4C43;
+    --chalk: #ECEEE4;
+    --chalk-dim: #A3B8AE;
+    --chalk-faint: rgba(236, 238, 228, 0.16);
+    --human: #8FC6EC;
+    --machine: #F2D06B;
+    --pos: #A9DEB2;
+    --neg: #EF9D93;
+    --font: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 700px at 30% -10%, rgba(64, 110, 96, 0.35), transparent 70%),
+      var(--page);
+    color: var(--chalk);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 36px 24px 48px; }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px 40px;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 760;
+    font-variation-settings: "wdth" 78, "opsz" 96;
+    letter-spacing: -0.015em;
+    line-height: 0.95;
+  }
+  .lede { margin: 12px 0 0; max-width: 50ch; color: var(--chalk-dim); font-size: 1.05rem; }
+
+  .score { display: grid; grid-template-columns: repeat(3, auto); gap: 0 32px; margin: 0; }
+  .score div { display: flex; flex-direction: column-reverse; }
+  .score dt { color: var(--chalk-dim); font-size: 0.9rem; }
+  .score dd { margin: 0; font-size: 2.4rem; font-weight: 700; line-height: 1; font-variation-settings: "wdth" 80; }
+  .score .you dd { color: var(--human); }
+  .score .bot dd { color: var(--machine); }
+
+  /* ---------- layout ---------- */
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 660px) minmax(270px, 1fr);
+    gap: 48px;
+    align-items: start;
+    margin-top: 32px;
+  }
+
+  /* ---------- board ---------- */
+  .board-panel {
+    position: relative;
+    border-radius: 22px;
+    padding: clamp(14px, 3.2vw, 30px);
+    background:
+      radial-gradient(110% 80% at 18% 8%, rgba(236, 238, 228, 0.07), transparent 60%),
+      radial-gradient(80% 60% at 88% 92%, rgba(236, 238, 228, 0.05), transparent 60%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+      var(--board);
+    box-shadow:
+      inset 0 0 90px rgba(0, 0, 0, 0.38),
+      0 0 0 1px var(--board-edge),
+      0 30px 60px -30px rgba(0, 0, 0, 0.6);
+  }
+
+  .board { position: relative; width: 100%; }
+  .board canvas { display: block; width: 100%; height: auto; touch-action: none; -webkit-tap-highlight-color: transparent; }
+  .board canvas:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 4px; border-radius: 6px; }
+
+  /* ---------- dock under the board ---------- */
+  .dock {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 20px;
+    margin-top: clamp(14px, 2.6vw, 22px);
+    padding-top: clamp(12px, 2.4vw, 18px);
+    border-top: 1px solid var(--chalk-faint);
+    min-height: 74px;
+  }
+  .dock[hidden] { display: none; }
+  .prompt { margin: 0; color: var(--chalk-dim); max-width: 34ch; }
+  .prompt kbd, .note kbd {
+    padding: 0 0.35em;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.9em;
+    color: var(--chalk);
+  }
+
+  .race { display: grid; grid-template-columns: repeat(3, auto); gap: 0 26px; margin: 0; }
+  .race div { display: flex; flex-direction: column-reverse; }
+  .race dt { color: var(--chalk-dim); font-size: 0.86rem; }
+  .race dd { margin: 0; font-size: 1.7rem; font-weight: 700; line-height: 1.05; font-variation-settings: "wdth" 82; }
+  .race .you dd { color: var(--human); }
+  .race .bot dd { color: var(--machine); }
+
+  .result h2 {
+    margin: 0;
+    font-size: clamp(1.3rem, 3.4vw, 1.5rem);
+    font-weight: 740;
+    font-variation-settings: "wdth" 82, "opsz" 96;
+    line-height: 1.1;
+  }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+  .progress { flex: 1 1 200px; min-width: 0; }
+  .progress-head { display: flex; justify-content: space-between; gap: 12px; color: var(--chalk-dim); font-size: 0.92rem; }
+  .bar { height: 8px; margin-top: 8px; border-radius: 999px; background: rgba(236, 238, 228, 0.1); overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--pos); }
+
+  .btn {
+    padding: 0.6rem 1.1rem;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { border-color: rgba(236, 238, 228, 0.45); }
+  .btn.primary { border-color: var(--chalk); background: var(--chalk); color: var(--page); }
+  .btn.primary:hover { background: #fff; }
+  .btn:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+
+
+  /* ---------- side panel ---------- */
+  aside { min-width: 0; }
+  .status h2 { margin: 0; font-size: 1.85rem; font-weight: 720; font-variation-settings: "wdth" 85; line-height: 1.1; }
+  .status p { margin: 8px 0 0; color: var(--chalk-dim); }
+  .tag { font-weight: 700; }
+  .tag.human { color: var(--human); }
+  .tag.machine { color: var(--machine); }
+
+  .group { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--chalk-faint); }
+  .group-title { margin: 0 0 12px; font-weight: 620; font-size: 1.05rem; }
+  .help { margin: 8px 0 0; max-width: 50ch; color: var(--chalk-dim); font-size: 0.92rem; }
+
+  .compass-wrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .compass { display: grid; gap: 4px; }
+  .compass .q {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 150px;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-weight: 640;
+    font-size: 0.98rem;
+    background: rgba(236, 238, 228, 0.04);
+  }
+  .compass .q .qn { color: var(--chalk-dim); font-weight: 560; font-size: 0.86rem; }
+  .compass .q.best { box-shadow: inset 0 0 0 2px currentColor; }
+  .compass .center { color: var(--chalk-dim); font-size: 0.86rem; text-align: center; }
+  .compass-note { flex: 1 1 150px; margin: 0; color: var(--chalk-dim); font-size: 0.92rem; max-width: 26ch; }
+
+  .segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 22px;
+  }
+  .segmented input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .segmented label {
+    padding: 0.42rem 0.95rem;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--chalk-dim);
+  }
+  .segmented input:checked + label { background: var(--chalk); color: var(--page); }
+  .segmented input:focus-visible + label { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  .segmented.small label { padding: 0.32rem 0.75rem; font-size: 0.92rem; }
+
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+
+  select, input[type="number"] {
+    padding: 0.45rem 0.7rem;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 12px;
+    background: var(--page);
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 600;
+    min-width: 0;
+  }
+  select {
+    padding-right: 2rem;
+    background: var(--page) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23A3B8AE' stroke-width='2'/></svg>") no-repeat right 0.75rem center;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  select:focus-visible, input[type="number"]:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  input[type="number"] { width: 100%; }
+
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+  .fields.rewards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field label { color: var(--chalk-dim); font-size: 0.86rem; }
+  .field[hidden] { display: none; }
+
+  .facts { margin: 14px 0 0; padding: 0; list-style: none; color: var(--chalk-dim); font-size: 0.92rem; max-width: 52ch; }
+  .facts li + li { margin-top: 4px; }
+
+  .chart { margin: 16px 0 0; }
+  .chart svg { display: block; width: 100%; height: 86px; overflow: visible; }
+  .chart .axis { stroke: var(--chalk-faint); stroke-width: 1; }
+  .chart .eps-line { stroke: var(--chalk-dim); stroke-width: 1; stroke-dasharray: 3 4; }
+  .chart .curve { fill: none; stroke: var(--pos); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .area { fill: rgba(169, 222, 178, 0.12); }
+  .chart text { fill: var(--chalk-dim); font: 500 11px var(--font); }
+  .chart figcaption { margin-top: 6px; color: var(--chalk-dim); font-size: 0.86rem; }
+
+  .switch { display: inline-flex; align-items: center; gap: 12px; font-weight: 620; font-size: 1.05rem; cursor: pointer; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .switch .track {
+    position: relative;
+    flex: none;
+    width: 46px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1.5px solid var(--chalk-faint);
+    background: rgba(236, 238, 228, 0.06);
+    transition: background 0.18s ease, border-color 0.18s ease;
+  }
+  .switch .track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: var(--chalk-dim);
+    transition: transform 0.18s ease, background 0.18s ease;
+  }
+  .switch input:checked + .track { background: rgba(169, 222, 178, 0.22); border-color: var(--pos); }
+  .switch input:checked + .track::after { transform: translateX(20px); background: var(--pos); }
+  .switch input:focus-visible + .track { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+
+  .slider-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .slider-head label { font-weight: 620; font-size: 1.05rem; }
+  .slider-head output { font-weight: 650; }
+  input[type="range"] { width: 100%; margin: 12px 0 0; accent-color: var(--machine); }
+
+  .row-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .note { margin: 0; max-width: 52ch; color: var(--chalk-dim); font-size: 0.86rem; }
+  .note + .note { margin-top: 8px; }
+
+  @media (max-width: 920px) {
+    main { grid-template-columns: 1fr; gap: 30px; }
+    .board-panel { max-width: 660px; width: 100%; margin: 0 auto; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 22px 16px 36px; }
+    header { gap: 18px; }
+    .score { gap: 0 24px; }
+    .score dd { font-size: 2rem; }
+    .race { gap: 0 18px; }
+    .race dd { font-size: 1.45rem; }
+    .fields, .fields.rewards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+  .pad button {
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 12px;
+    background: rgba(236, 238, 228, 0.04);
+    color: var(--chalk);
+    cursor: pointer;
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .pad button:hover { border-color: var(--human); }
+  .pad button:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  .pad button.held { border-color: var(--human); background: rgba(143, 198, 236, 0.14); }
+  .pad svg path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .pad {
+    display: grid;
+    grid-template-columns: repeat(2, 52px);
+    grid-template-rows: 42px;
+    gap: 6px;
+  }
+  .pad svg { width: 18px; height: 18px; }
+  .compass { grid-template-columns: repeat(3, 78px); }
+  .compass .q { flex-direction: column; justify-content: center; gap: 2px; min-width: 0; height: 56px; padding: 0 6px; }
+  .compass .center { grid-column: 1 / -1; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Breakout</h1>
+      <p class="lede">Train a paddle with one of seven reinforcement-learning methods, then play it side by side on the same wall with the same serves. Most bricks wins.</p>
+    </div>
+    <dl class="score" aria-label="Score">
+      <div class="you"><dt>You</dt><dd id="score-human">0</dd></div>
+      <div class="bot"><dt>Machine</dt><dd id="score-machine">0</dd></div>
+      <div><dt>Draws</dt><dd id="score-draw">0</dd></div>
+    </dl>
+  </header>
+
+  <main>
+    <section class="board-panel" aria-label="Game board">
+      <div class="board" id="board">
+        <canvas id="cv" width="1272" height="864" tabindex="0" aria-label="Two Breakout courts. You play the left one: the left and right arrows, A and D, or the mouse over your court move your paddle."></canvas>
+      </div>
+
+      <div class="dock" id="dock-train" hidden>
+        <div class="progress">
+          <div class="progress-head"><span id="train-label">Training</span><span id="train-pct">0%</span></div>
+          <div class="bar"><span id="train-bar"></span></div>
+        </div>
+        <button class="btn" type="button" id="finish-now">Finish now</button>
+      </div>
+
+      <div class="dock" id="dock-ready" hidden>
+        <p class="prompt">You play the left court. Move with <kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd>, or the mouse over your court.</p>
+        <div class="actions">
+          <button class="btn" type="button" id="new-wall">New serves</button>
+          <button class="btn primary" type="button" id="serve">Serve</button>
+        </div>
+      </div>
+
+      <div class="dock" id="dock-race" hidden>
+        <dl class="race">
+          <div class="you"><dt>Your bricks</dt><dd id="bricks-human">0</dd></div>
+          <div class="bot"><dt>Machine's bricks</dt><dd id="bricks-machine">0</dd></div>
+          <div><dt>Clock</dt><dd id="clock">0:00</dd></div>
+        </dl>
+        <div class="actions">
+          <button class="btn" type="button" id="pause">Pause</button>
+          <div class="pad" role="group" aria-label="Move your paddle">
+            <button type="button" data-move="left" aria-label="Hold to move left"><svg viewBox="0 0 20 20"><path d="M16 10H4M10 4l-6 6 6 6"/></svg></button>
+            <button type="button" data-move="right" aria-label="Hold to move right"><svg viewBox="0 0 20 20"><path d="M4 10h12M10 4l6 6-6 6"/></svg></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="dock result" id="dock-over" hidden>
+        <h2 id="end-title">Draw</h2>
+        <div class="actions">
+          <button class="btn primary" type="button" id="again">Play again</button>
+          <button class="btn" type="button" id="new-wall-over">New serves</button>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="status" aria-live="polite">
+        <h2 id="status-title">Training</h2>
+        <p id="status-text"></p>
+      </div>
+
+      <div class="group">
+        <p class="group-title" id="compass-title">Q-values</p>
+        <div class="compass-wrap">
+          <div class="compass" id="compass">
+            <div class="q" data-a="0"><span class="qn">left</span><span class="qv"></span></div>
+            <div class="q" data-a="1"><span class="qn">stay</span><span class="qv"></span></div>
+            <div class="q" data-a="2"><span class="qn">right</span><span class="qv"></span></div>
+            <div class="center" id="compass-center"></div>
+          </div>
+          <p class="compass-note" id="compass-note"></p>
+        </div>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Court</p>
+        <div class="segmented" role="radiogroup" aria-label="Court" id="court-picker"></div>
+        <p class="help" id="court-info"></p>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Training</p>
+        <div class="row">
+          <label for="method">Method</label>
+          <select id="method"></select>
+        </div>
+        <p class="help" id="method-info"></p>
+        <div class="fields">
+          <div class="field"><label for="p-alpha">α (step size)</label><input type="number" id="p-alpha" min="0.01" max="1" step="0.01"></div>
+          <div class="field"><label for="p-gamma">γ (discount)</label><input type="number" id="p-gamma" min="0" max="0.999" step="0.01"></div>
+          <div class="field" id="field-lambda"><label for="p-lambda">λ (trace)</label><input type="number" id="p-lambda" min="0" max="1" step="0.05"></div>
+          <div class="field"><label for="p-steps">Steps</label><input type="number" id="p-steps" min="1000" max="5000000" step="1000"></div>
+        </div>
+        <div class="fields rewards">
+          <div class="field"><label for="r-brick">Brick</label><input type="number" id="r-brick" step="0.5"></div>
+          <div class="field"><label for="r-hit">Return</label><input type="number" id="r-hit" step="0.1"></div>
+          <div class="field"><label for="r-lost">Ball lost</label><input type="number" id="r-lost" step="1"></div>
+        </div>
+        <p class="help">ε falls from 1 to 0 over the first 60% of the steps. Each training episode is one ball on a fresh wall. The state is where the ball is relative to the paddle, whether it is falling, how high it is, its sideways speed and its distance from the side walls, cut into <span id="state-count"></span> bins. The bricks are not part of it.</p>
+        <figure class="chart" id="chart" aria-label="Training progress chart">
+          <svg id="chart-svg"></svg>
+          <figcaption>Share of the wall the greedy paddle breaks with a single ball, averaged over 8 test serves (up to 3,000 ticks each), across training. The dashed line is where ε reaches 0.</figcaption>
+        </figure>
+        <ul class="facts">
+          <li id="fact-policy"></li>
+          <li id="fact-training"></li>
+        </ul>
+        <div class="row">
+          <button class="btn" type="button" id="retrain">Train again</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="switch">
+          <input type="checkbox" role="switch" id="show-q">
+          <span class="track" aria-hidden="true"></span>
+          <span>Show the policy on the board</span>
+        </label>
+        <p class="help">On the machine's court, dashed lines mark the height and side bins it sees. The strip under its paddle slices its Q-table for the ball as it is now: each cell is a place the paddle's centre could be, split into Q(left), Q(stay) and Q(right), tinted green for positive and red for negative. The chalk mark is the move it makes there. Point at a cell to read its values.</p>
+      </div>
+
+      <div class="group">
+        <div class="slider-head">
+          <label for="eps">Exploration in the match</label>
+          <output id="eps-out" for="eps">ε = 0.00</output>
+        </div>
+        <input type="range" id="eps" min="0" max="1" step="0.05" value="0">
+        <p class="help">Chance, on every tick, that the machine ignores its Q-table and moves at random. Even at 0 it drops the odd ball, and it never aims at the bricks that are left.</p>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Game speed</p>
+        <div class="segmented small" role="radiogroup" aria-label="Game speed" id="speed-picker"></div>
+      </div>
+
+      <div class="group row-actions">
+        <button class="btn" type="button" id="new-race">New match</button>
+        <button class="btn" type="button" id="reset-score">Reset score</button>
+      </div>
+
+      <div class="group">
+        <p class="note">Each of you has 3 balls, the same wall and the same serves. Clear your wall first and you win; otherwise most bricks wins, and the match stops as soon as the result can no longer change. Level when both are out, or when the 3-minute clock runs down, is a draw.</p>
+        <p class="note"><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd> move your paddle, as do the buttons under the board, the mouse over your court or a drag. <kbd>Space</kbd> serves; <kbd>P</kbd> pauses.</p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+// Tabular RL trainer. Shared by the page and the Node tests.
+// env: { nStates, nActions, cap, reset() -> s, step(a) -> { s, r, done } }
+//   The env keeps its own simulator; s is the discretised state index.
+// cfg: { method, alpha, gamma, lambda, steps, rng }
+// ε falls linearly from 1 to 0 over the first EXPLORE_SHARE of the steps, then stays 0.
+// Episodes stop when the env reports done or after env.cap steps. Monte Carlo uses exploring starts.
+const EXPLORE_SHARE = 0.6;
+
+function createTrainer(env, cfg) {
+  const A = env.nActions;
+  const N = env.nStates;
+  const rnd = cfg.rng;
+  const QA = new Float64Array(N * A);
+  const QB = cfg.method === 'double' ? new Float64Array(N * A) : null;
+  for (let i = 0; i < N * A; i++) {
+    QA[i] = rnd() / 100;
+    if (QB) QB[i] = rnd() / 100;
+  }
+  const seen = new Uint8Array(N);
+  const usesTraces = cfg.method === 'sarsa-lambda' || cfg.method === 'q-lambda';
+  const E = usesTraces ? new Float64Array(N * A) : null;
+  let active = [];
+  let t = 0, s = 0, a = 0, epLen = 0, episodes = 0, seenCount = 0;
+  let buffer = [];
+
+  function value(k, b) { return QB ? (QA[k * A + b] + QB[k * A + b]) / 2 : QA[k * A + b]; }
+
+  function argmax(get, k) {
+    let best = -Infinity, ties = [];
+    for (let b = 0; b < A; b++) {
+      const v = get(k, b);
+      if (v > best + 1e-12) { best = v; ties = [b]; } else if (Math.abs(v - best) <= 1e-12) ties.push(b);
+    }
+    return ties.length === 1 ? ties[0] : ties[Math.floor(rnd() * ties.length)];
+  }
+  const fromA = function (k, b) { return QA[k * A + b]; };
+  const fromB = function (k, b) { return QB[k * A + b]; };
+
+  function epsilon() { return Math.max(0, 1 - t / (EXPLORE_SHARE * cfg.steps)); }
+  function choose(k) { return rnd() < epsilon() ? Math.floor(rnd() * A) : argmax(value, k); }
+  function maxRow(k) {
+    let m = -Infinity;
+    for (let b = 0; b < A; b++) m = Math.max(m, QA[k * A + b]);
+    return m;
+  }
+  function mark(k) { if (!seen[k]) { seen[k] = 1; seenCount++; } }
+
+  function clearTraces() {
+    for (const i of active) E[i] = 0;
+    active = [];
+  }
+
+  function begin() {
+    s = env.reset();
+    mark(s);
+    epLen = 0;
+    episodes++;
+    if (usesTraces) clearTraces();
+    buffer = [];
+    a = cfg.method === 'mc' ? Math.floor(rnd() * A) : choose(s);
+  }
+
+  function traceUpdate(delta, keep) {
+    const decay = cfg.gamma * cfg.lambda;
+    const next = [];
+    for (const i of active) {
+      QA[i] += cfg.alpha * delta * E[i];
+      if (keep) {
+        E[i] *= decay;
+        if (E[i] > 1e-6) next.push(i); else E[i] = 0;
+      } else {
+        E[i] = 0;
+      }
+    }
+    active = next;
+  }
+
+  function finishMonteCarlo() {
+    const first = new Map();
+    buffer.forEach(function (step, i) { if (!first.has(step.idx)) first.set(step.idx, i); });
+    let G = 0;
+    for (let i = buffer.length - 1; i >= 0; i--) {
+      G = buffer[i].r + cfg.gamma * G;
+      if (first.get(buffer[i].idx) === i) QA[buffer[i].idx] += cfg.alpha * (G - QA[buffer[i].idx]);
+    }
+  }
+
+  function stepOnce() {
+    const out = env.step(a);
+    const s2 = out.s, r = out.r, end = out.done;
+    const idx = s * A + a;
+    let a2 = 0;
+    if (!end) mark(s2);
+    switch (cfg.method) {
+      case 'q':
+        QA[idx] += cfg.alpha * (r + (end ? 0 : cfg.gamma * maxRow(s2)) - QA[idx]);
+        if (!end) a2 = choose(s2);
+        break;
+      case 'sarsa':
+        if (!end) a2 = choose(s2);
+        QA[idx] += cfg.alpha * (r + (end ? 0 : cfg.gamma * QA[s2 * A + a2]) - QA[idx]);
+        break;
+      case 'expected': {
+        let expect = 0;
+        if (!end) {
+          const eps = epsilon();
+          let sum = 0;
+          for (let b = 0; b < A; b++) sum += QA[s2 * A + b];
+          expect = (1 - eps) * maxRow(s2) + (eps / A) * sum;
+          a2 = choose(s2);
+        }
+        QA[idx] += cfg.alpha * (r + cfg.gamma * expect - QA[idx]);
+        break;
+      }
+      case 'double':
+        if (rnd() < 0.5) {
+          const target = end ? 0 : QB[s2 * A + argmax(fromA, s2)];
+          QA[idx] += cfg.alpha * (r + cfg.gamma * target - QA[idx]);
+        } else {
+          const target = end ? 0 : QA[s2 * A + argmax(fromB, s2)];
+          QB[idx] += cfg.alpha * (r + cfg.gamma * target - QB[idx]);
+        }
+        if (!end) a2 = choose(s2);
+        break;
+      case 'sarsa-lambda': {
+        if (!end) a2 = choose(s2);
+        const delta = r + (end ? 0 : cfg.gamma * QA[s2 * A + a2]) - QA[idx];
+        if (E[idx] === 0) active.push(idx);
+        E[idx] += 1;
+        traceUpdate(delta, !end);
+        break;
+      }
+      case 'q-lambda': {
+        let star = 0;
+        if (!end) {
+          a2 = choose(s2);
+          star = QA[s2 * A + a2] >= maxRow(s2) ? a2 : argmax(fromA, s2);
+        }
+        const delta = r + (end ? 0 : cfg.gamma * QA[s2 * A + star]) - QA[idx];
+        if (E[idx] === 0) active.push(idx);
+        E[idx] += 1;
+        traceUpdate(delta, !end && a2 === star);
+        break;
+      }
+      case 'mc':
+        buffer.push({ idx: idx, r: r });
+        if (!end) a2 = choose(s2);
+        break;
+      default:
+        throw new Error('unknown method ' + cfg.method);
+    }
+    t++;
+    epLen++;
+    if (end || epLen >= env.cap) {
+      if (cfg.method === 'mc') finishMonteCarlo();
+      begin();
+    } else {
+      s = s2;
+      a = a2;
+    }
+  }
+
+  begin();
+  return {
+    run: function (count) {
+      const stop = Math.min(cfg.steps, t + count);
+      while (t < stop) stepOnce();
+      return t >= cfg.steps;
+    },
+    value: value,
+    epsilon: epsilon,
+    progress: function () { return t / cfg.steps; },
+    episodes: function () { return episodes; },
+    visited: function () { return seenCount; }
+  };
+}
+
+// Breakout model: physics, wall, state encoder. Shared by the page and the Node tests.
+// One court: x from 0 to W, y from 0 (top) to H (floor). The paddle slides along PAD_Y.
+const BRK = {
+  W: 48, H: 64,          // court size
+  R: 0.8,                // ball radius
+  PAD_Y: 60,             // paddle centre line
+  PAD_H: 1.4,            // paddle thickness
+  MOVE: 1.8,             // paddle speed per tick
+  COLS: 8, ROWS: 6,      // the wall
+  TOP: 7,                // y of the wall's top edge
+  BRICK_H: 2.6,          // brick height (brick width is W / COLS)
+  SPIN: 60 * Math.PI / 180, // widest return angle from vertical, at the paddle tip
+  ACCEL: 0.01,           // speed gained on every return
+  SERVE_Y: 30,           // height the ball is served from, falling
+  SERVE_ANGLE: 35 * Math.PI / 180
+};
+const BRICKS = BRK.COLS * BRK.ROWS;
+const COURTS = {
+  classic: { name: 'Classic', paddle: 9, speed: 0.9, top: 1.4, steps: 1000000 },
+  small: { name: 'Small paddle', paddle: 6, speed: 0.9, top: 1.4, steps: 1200000 },
+  fast: { name: 'Fast ball', paddle: 9, speed: 1.15, top: 1.7, steps: 1000000 }
+};
+const BRK_ACTIONS = ['left', 'stay', 'right'];
+const PAD_TOP = BRK.PAD_Y - BRK.PAD_H / 2;
+
+// Bins of the tabular state.
+const B_DX = [-14, -7, -3.5, -1.2, 1.2, 3.5, 7, 14];   // ball x minus paddle x
+const B_HEIGHT = [6, 14, 26, 40];                        // paddle line minus ball y
+const B_VX = [-0.6, -0.2, 0.2, 0.6];                     // ball horizontal speed
+const B_BAND = [8, 16, 24, 32, 40];                      // ball x band (for wall bounces)
+const BRK_STATES = (B_DX.length + 1) * 2 * (B_HEIGHT.length + 1) * (B_VX.length + 1) * (B_BAND.length + 1);
+
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let z = s;
+    z = Math.imul(z ^ (z >>> 15), z | 1);
+    z ^= z + Math.imul(z ^ (z >>> 7), z | 61);
+    return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function binOf(v, edges) {
+  let i = 0;
+  while (i < edges.length && v >= edges[i]) i++;
+  return i;
+}
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// A court: paddle, ball, wall and its own serve stream (same seed, same serves).
+function makeCourt(spec, seed) {
+  return {
+    spec: spec,
+    rng: mulberry32(seed),
+    px: BRK.W / 2,
+    bx: BRK.W / 2, by: BRK.SERVE_Y, vx: 0, vy: 0,
+    speed: spec.speed,
+    bricks: new Uint8Array(BRICKS).fill(1),
+    left: BRICKS,
+    live: false
+  };
+}
+
+function serveBall(c) {
+  const a = (c.rng() * 2 - 1) * BRK.SERVE_ANGLE;
+  c.bx = 8 + c.rng() * (BRK.W - 16);
+  c.by = BRK.SERVE_Y;
+  c.speed = c.spec.speed;
+  c.vx = Math.sin(a) * c.speed;
+  c.vy = Math.cos(a) * c.speed;
+  c.live = true;
+}
+
+function brickBox(i) {
+  const w = BRK.W / BRK.COLS, col = i % BRK.COLS, row = Math.floor(i / BRK.COLS);
+  return { x0: col * w, x1: (col + 1) * w, y0: BRK.TOP + row * BRK.BRICK_H, y1: BRK.TOP + (row + 1) * BRK.BRICK_H };
+}
+
+function movePaddle(c, a) {
+  const d = a === 0 ? -BRK.MOVE : a === 2 ? BRK.MOVE : 0;
+  c.px = clamp(c.px + d, c.spec.paddle / 2, BRK.W - c.spec.paddle / 2);
+}
+
+// One tick. a: 0 left, 1 stay, 2 right. Returns { brick: index or -1, hit, lost }.
+function breakStep(c, a) {
+  movePaddle(c, a);
+  const out = { brick: -1, hit: false, lost: false };
+  if (!c.live) return out;
+  const ox = c.bx, oy = c.by;
+  c.bx += c.vx;
+  c.by += c.vy;
+  if (c.bx - BRK.R < 0) { c.bx = 2 * BRK.R - c.bx; c.vx = Math.abs(c.vx); }
+  else if (c.bx + BRK.R > BRK.W) { c.bx = 2 * (BRK.W - BRK.R) - c.bx; c.vx = -Math.abs(c.vx); }
+  if (c.by - BRK.R < 0) { c.by = 2 * BRK.R - c.by; c.vy = Math.abs(c.vy); }
+  // the wall: at most one brick per tick, the one nearest the ball
+  if (c.by - BRK.R < BRK.TOP + BRK.ROWS * BRK.BRICK_H && c.by + BRK.R > BRK.TOP) {
+    let best = -1, bestD = Infinity;
+    for (let i = 0; i < BRICKS; i++) {
+      if (!c.bricks[i]) continue;
+      const b = brickBox(i);
+      const nx = clamp(c.bx, b.x0, b.x1), ny = clamp(c.by, b.y0, b.y1);
+      const d = (c.bx - nx) * (c.bx - nx) + (c.by - ny) * (c.by - ny);
+      if (d < BRK.R * BRK.R && d < bestD) { bestD = d; best = i; }
+    }
+    if (best !== -1) {
+      const b = brickBox(best);
+      c.bricks[best] = 0;
+      c.left--;
+      out.brick = best;
+      if (oy + BRK.R <= b.y0 || oy - BRK.R >= b.y1) { c.vy = -c.vy; c.by = oy; }
+      else { c.vx = -c.vx; c.bx = ox; }
+    }
+  }
+  // the paddle, checked where the ball crosses its top edge
+  if (c.vy > 0 && oy + BRK.R <= PAD_TOP && c.by + BRK.R >= PAD_TOP) {
+    const xc = ox + (PAD_TOP - BRK.R - oy) / (c.by - oy) * (c.bx - ox);
+    if (Math.abs(xc - c.px) <= c.spec.paddle / 2 + BRK.R) {
+      const impact = clamp((xc - c.px) / (c.spec.paddle / 2), -1, 1);
+      c.speed = Math.min(c.spec.top, c.speed * (1 + BRK.ACCEL));
+      c.vx = Math.sin(impact * BRK.SPIN) * c.speed;
+      c.vy = -Math.cos(impact * BRK.SPIN) * c.speed;
+      c.bx = xc;
+      c.by = PAD_TOP - BRK.R;
+      out.hit = true;
+    }
+  }
+  if (c.by - BRK.R > BRK.H) { c.live = false; out.lost = true; }
+  return out;
+}
+
+function breakFeatures(c) {
+  return { dx: c.bx - c.px, falling: c.vy > 0 ? 1 : 0, height: BRK.PAD_Y - c.by, vx: c.vx, bx: c.bx };
+}
+
+function breakEncode(f) {
+  let k = binOf(f.dx, B_DX);
+  k = k * 2 + f.falling;
+  k = k * (B_HEIGHT.length + 1) + binOf(f.height, B_HEIGHT);
+  k = k * (B_VX.length + 1) + binOf(f.vx, B_VX);
+  return k * (B_BAND.length + 1) + binOf(f.bx, B_BAND);
+}
+
+function breakState(c) { return breakEncode(breakFeatures(c)); }
+
+// Training environment: one ball on a fresh wall; the episode ends when the ball is lost or the wall is gone.
+// rewards: { brick, hit, lost }
+function makeBreakoutEnv(spec, rewards, rng, cap) {
+  let c = null;
+  return {
+    nStates: BRK_STATES,
+    nActions: 3,
+    cap: cap,
+    reset: function () {
+      c = makeCourt(spec, Math.floor(rng() * 4294967296));
+      c.px = spec.paddle / 2 + rng() * (BRK.W - spec.paddle);
+      serveBall(c);
+      return breakState(c);
+    },
+    step: function (a) {
+      const ev = breakStep(c, a);
+      const r = (ev.brick !== -1 ? rewards.brick : 0) + (ev.hit ? rewards.hit : 0) + (ev.lost ? rewards.lost : 0);
+      return { s: breakState(c), r: r, done: ev.lost || c.left === 0 };
+    }
+  };
+}
+
+// Greedy test balls on fixed seeds. policy(k) -> action.
+// Each test is one ball on a fresh wall, stopped when it is lost, the wall is gone or after capTicks.
+function breakEvaluate(policy, spec, seeds, capTicks) {
+  let bricks = 0, cleared = 0, returns = 0, lost = 0;
+  for (const seed of seeds) {
+    const c = makeCourt(spec, seed);
+    serveBall(c);
+    for (let t = 0; t < capTicks && c.live && c.left > 0; t++) {
+      const ev = breakStep(c, policy(breakState(c)));
+      if (ev.hit) returns++;
+      if (ev.lost) lost++;
+    }
+    bricks += BRICKS - c.left;
+    if (c.left === 0) cleared++;
+  }
+  return { share: bricks / (BRICKS * seeds.length), cleared: cleared, returns: returns, lost: lost };
+}
+
+// Chalk on canvas. Shapes are drawn once into sprites, eroded with a fixed grain so they read
+// as chalk, then blitted every frame. Moving things keep their grain because it is baked in.
+function createChalk(dpr) {
+  const GRAIN = (function () {
+    const n = 160, m = 10;
+    const c = document.createElement('canvas');
+    c.width = c.height = n;
+    const g = c.getContext('2d');
+    const img = g.createImageData(n, n);
+    const rng = mulberry32(99);
+    const coarse = [];
+    for (let i = 0; i < m * m; i++) coarse.push(rng());
+    const at = function (x, y) { return coarse[(y % m) * m + (x % m)]; };
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const fx = x / n * m, fy = y / n * m;
+        const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+        const cv = (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
+        const v = 0.62 * rng() + 0.38 * cv;
+        img.data[(y * n + x) * 4 + 3] = Math.round(255 * Math.max(0, Math.min(1, (v - 0.48) * 2.4)));
+      }
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  })();
+  const texts = new Map();
+
+  function canvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w));
+    c.height = Math.max(1, Math.ceil(h));
+    return c;
+  }
+
+  function erode(g, w, h, amount) {
+    const pat = g.createPattern(GRAIN, 'repeat');
+    pat.setTransform(new DOMMatrix().scale(Math.max(1, dpr * 0.85)));
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'destination-out';
+    g.globalAlpha = amount;
+    g.fillStyle = pat;
+    g.fillRect(0, 0, w, h);
+    g.restore();
+  }
+
+  // Sprite of w×h device pixels; draw(g) paints it, then the grain eats into it.
+  function sprite(w, h, draw, amount) {
+    const c = canvas(w, h);
+    const g = c.getContext('2d');
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    draw(g);
+    erode(g, c.width, c.height, amount === undefined ? 0.9 : amount);
+    return c;
+  }
+
+  // Stroke the current path twice, a hair apart, like a stick of chalk pressed unevenly.
+  function stroke(g, color, width, alpha) {
+    g.save();
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.globalAlpha = alpha;
+    g.stroke();
+    g.translate(width * 0.18, -width * 0.12);
+    g.globalAlpha = alpha * 0.45;
+    g.stroke();
+    g.restore();
+  }
+
+  // Parallel lines inside the current path.
+  function hatch(g, box, color, gap, width, alpha, angle) {
+    g.save();
+    g.clip();
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.globalAlpha = alpha;
+    const cx = box.x + box.w / 2, cy = box.y + box.h / 2, r = Math.hypot(box.w, box.h) / 2 + gap;
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    g.beginPath();
+    for (let d = -r; d <= r; d += gap) {
+      g.moveTo(cx + ca * -r - sa * d, cy + sa * -r + ca * d);
+      g.lineTo(cx + ca * r - sa * d, cy + sa * r + ca * d);
+    }
+    g.stroke();
+    g.restore();
+  }
+
+  // Cached chalk text sprite (px is the font size in device pixels).
+  function text(str, px, color, weight) {
+    const key = str + '|' + px + '|' + color + '|' + weight;
+    let c = texts.get(key);
+    if (c) return c;
+    const font = weight + ' ' + px + 'px "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif';
+    const probe = canvas(1, 1).getContext('2d');
+    probe.font = font;
+    const w = probe.measureText(str).width + px * 0.4;
+    c = sprite(w, px * 1.35, function (g) {
+      g.font = font;
+      g.textBaseline = 'middle';
+      g.fillStyle = color;
+      g.fillText(str, px * 0.2, px * 0.7);
+      g.globalAlpha = 0.4;
+      g.fillText(str, px * 0.2 + px * 0.03, px * 0.68);
+    }, 0.7);
+    if (document.fonts && document.fonts.status === 'loaded') texts.set(key, c);
+    return c;
+  }
+
+  return { sprite: sprite, stroke: stroke, hatch: hatch, text: text };
+}
+
+// Blit a sprite centred on (x, y) device pixels.
+function blit(ctx, img, x, y, alpha) {
+  ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+  ctx.drawImage(img, Math.round(x - img.width / 2), Math.round(y - img.height / 2));
+  ctx.globalAlpha = 1;
+}
+
+(function () {
+  'use strict';
+
+  // ---------- constants ----------
+  const METHODS = [
+    { key: 'q', name: 'Q-learning', info: 'Off-policy TD: each update uses the best next action, whatever the paddle actually does next.' },
+    { key: 'sarsa', name: 'SARSA', info: 'On-policy TD: each update uses the action the paddle actually takes next, exploration included.' },
+    { key: 'double', name: 'Double Q-learning', info: 'Two Q-tables: one picks the best next action, the other values it, which curbs over-estimation. The paddle plays with their average.' },
+    { key: 'expected', name: 'Expected SARSA', info: 'Like SARSA, but uses the average value of the next actions under the ε-greedy policy instead of one sampled action.' },
+    { key: 'sarsa-lambda', name: 'SARSA(λ)', info: 'SARSA with eligibility traces: every reward also updates the recent ticks of the ball\'s flight, faded by γλ.' },
+    { key: 'q-lambda', name: 'Q(λ)', info: 'Watkins\' Q(λ): Q-learning with eligibility traces, which are cut whenever the paddle explores.' },
+    { key: 'mc', name: 'Monte Carlo', info: 'Waits until the ball is lost and learns from the full discounted return. Each episode opens with a random action (exploring starts).' }
+  ];
+  const SPEEDS = { slow: { name: 'Slow', hz: 32 }, normal: { name: 'Normal', hz: 45 }, fast: { name: 'Fast', hz: 60 } };
+  const BALLS = 3;                    // balls per player in a match
+  const MATCH_TICKS = 180 * 45;       // three minutes at normal speed
+  const SERVE_WAIT = 40;              // ticks before each serve
+  const EVAL_SEEDS = [301, 312, 323, 334, 345, 356, 367, 378];
+  const EVAL_CAP = 3000;              // ticks per test ball
+  const EPISODE_CAP = 4000;           // ticks per training ball
+  const TRAIN_FRAMES = 120;
+  const PADV = 2, GAP = 6, FOOT = 7;  // margins around and between the courts, footer under them
+  const VIEW_W = 2 * BRK.W + GAP + 2 * PADV, VIEW_H = BRK.H + PADV + FOOT;
+  const ORIGIN = [PADV, PADV + BRK.W + GAP];
+  const TRAIL = 9;
+  const ROW_COLORS = ['#EF9D93', '#F3B48A', '#F2D06B', '#A9DEB2', '#8FC6EC', '#C3B4EE'];
+  const C = { chalk: '#ECEEE4', dim: '#A3B8AE', human: '#8FC6EC', machine: '#F2D06B', pos: '#A9DEB2', neg: '#EF9D93', board: '#1D3A32' };
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- persistence ----------
+  const STORE = 'breakout-lab-v1';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        score: score, showQ: showQ, eps: raceEps, court: courtKey, speed: speedKey,
+        method: params.method, alpha: params.alpha, gamma: params.gamma, lambda: params.lambda, rewards: params.rewards
+      }));
+    } catch (e) { /* storage unavailable */ }
+  }
+  function num(v, fallback, lo, hi) {
+    return typeof v === 'number' && isFinite(v) && v >= lo && v <= hi ? v : fallback;
+  }
+
+  const saved = load();
+  const score = Object.assign({ human: 0, machine: 0, draw: 0 }, saved.score || {});
+  let showQ = !!saved.showQ;
+  let raceEps = num(saved.eps, 0, 0, 1);
+  let courtKey = COURTS[saved.court] ? saved.court : 'classic';
+  let speedKey = SPEEDS[saved.speed] ? saved.speed : 'normal';
+  const savedRewards = saved.rewards || {};
+  const params = {
+    method: METHODS.some(function (m) { return m.key === saved.method; }) ? saved.method : 'q',
+    alpha: num(saved.alpha, 0.1, 0.01, 1),
+    gamma: num(saved.gamma, 0.98, 0, 0.999),
+    lambda: num(saved.lambda, 0.8, 0, 1),
+    steps: COURTS[courtKey].steps,
+    rewards: {
+      brick: num(savedRewards.brick, 1, -1e6, 1e6),
+      hit: num(savedRewards.hit, 0.2, -1e6, 1e6),
+      lost: num(savedRewards.lost, -5, -1e6, 1e6)
+    }
+  };
+
+  // ---------- policy ----------
+  let trainer = null;
+  let SCALE = { vmax: 0, nmax: 0 };
+
+  function q(k, a) { return trainer ? trainer.value(k, a) : 0; }
+  function qRow(k) { return [q(k, 0), q(k, 1), q(k, 2)]; }
+  function bestActions(row) {
+    const mx = Math.max(row[0], row[1], row[2]);
+    const out = [];
+    for (let a = 0; a < 3; a++) if (row[a] >= mx - 1e-12) out.push(a);
+    return out;
+  }
+  function policy(k) { return bestActions(qRow(k))[0]; }
+  function evaluate() { return breakEvaluate(policy, COURTS[courtKey], EVAL_SEEDS, EVAL_CAP); }
+
+  function buildScale() {
+    let vmax = 0, nmax = 0;
+    for (let k = 0; k < BRK_STATES; k++) {
+      for (let a = 0; a < 3; a++) {
+        const v = q(k, a);
+        if (v > vmax) vmax = v;
+        if (-v > nmax) nmax = -v;
+      }
+    }
+    return { vmax: vmax, nmax: nmax };
+  }
+  function tintFill(v) {
+    if (v > 0) return 'rgba(169, 222, 178, ' + (0.06 + 0.42 * (SCALE.vmax > 0 ? Math.sqrt(Math.min(1, v / SCALE.vmax)) : 1)).toFixed(3) + ')';
+    if (v < 0) return 'rgba(239, 157, 147, ' + (0.07 + 0.4 * (SCALE.nmax > 0 ? Math.sqrt(Math.min(1, -v / SCALE.nmax)) : 1)).toFixed(3) + ')';
+    return 'rgba(236, 238, 228, 0.04)';
+  }
+  function tintText(v) { return v > 0 ? 'var(--pos)' : v < 0 ? 'var(--neg)' : 'var(--chalk-dim)'; }
+
+  function fmt(v) {
+    const a = Math.abs(v);
+    let s;
+    if (a === 0) s = '0';
+    else if (a >= 10) s = a.toFixed(1);
+    else if (a >= 1) s = a.toFixed(2);
+    else if (a >= 0.001) s = a.toPrecision(3);
+    else s = a.toExponential(1);
+    return (v < 0 ? '−' : '') + s.replace('-', '−');
+  }
+  function methodOf(key) { return METHODS.filter(function (m) { return m.key === key; })[0]; }
+  function count(n) { return n.toLocaleString('en-US'); }
+
+  // ---------- game state ----------
+  let phase = 'training';   // training | ready | match | over
+  let courts = null;        // [yours, the machine's] in a match
+  let idle = null;          // your court, shown empty while the machine trains
+  let demo = null;          // the learner's practice court during training
+  let matchSeed = 0;
+  let ticksLeft = MATCH_TICKS;
+  let paused = false;
+  let lastMachine = null;
+  let result = null;
+  let history = [];
+  let lastEval = null;
+  const held = new Set();   // 'left' / 'right' from keys and the pad
+  let targetX = null;       // court x the mouse or a drag is steering your paddle to
+  let dragging = false;
+  let pointer = null;       // mouse position on the machine's court, for reading the policy strip
+  let hoverCell = null;
+  let particles = [];
+  let acc = 0;
+
+  function newSeed() { return Math.floor(Math.random() * 4294967296); }
+  function newCourt(seed, who) {
+    const c = makeCourt(COURTS[courtKey], seed);
+    c.who = who;
+    c.balls = BALLS;
+    c.wait = SERVE_WAIT;
+    c.prev = { px: c.px, bx: c.bx, by: c.by };
+    c.trail = [];
+    c.banner = null;
+    return c;
+  }
+  function broken(c) { return BRICKS - c.left; }
+  function bricks(n) { return n + (n === 1 ? ' brick' : ' bricks'); }
+  function isOut(c) { return c.balls === 0 && !c.live; }
+
+  // ---------- DOM ----------
+  const $ = function (id) { return document.getElementById(id); };
+  const cv = $('cv');
+  const ctx = cv.getContext('2d');
+  const docks = { training: $('dock-train'), ready: $('dock-ready'), race: $('dock-race'), over: $('dock-over') };
+
+  function el(name, attrs, parent) {
+    const node = document.createElementNS(SVGNS, name);
+    for (const key in attrs) node.setAttribute(key, attrs[key]);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  // ---------- sprites ----------
+  let S = 1, DPR = 1, SPR = null, chalk = null;
+  function SX(ox, x) { return (ox + x) * S; }
+  function SY(y) { return (PADV + y) * S; }
+
+  function resize() {
+    DPR = Math.min(2.5, window.devicePixelRatio || 1);
+    const w = Math.max(320, Math.round(cv.clientWidth * DPR));
+    cv.width = w;
+    cv.height = Math.round(w * VIEW_H / VIEW_W);
+    S = w / VIEW_W;
+    buildSprites();
+  }
+
+  function buildSprites() {
+    chalk = createChalk(DPR);
+    const spec = COURTS[courtKey];
+    const unit = function (w, h, draw, amount) {
+      return chalk.sprite(w * S, h * S, function (g) { g.scale(S, S); draw(g); }, amount);
+    };
+    SPR = {};
+    SPR.court = unit(BRK.W + 2, BRK.H + 2, function (g) {
+      g.translate(1, 1);
+      g.beginPath(); g.moveTo(0, BRK.H); g.lineTo(0, 0); g.lineTo(BRK.W, 0); g.lineTo(BRK.W, BRK.H);
+      chalk.stroke(g, C.chalk, 0.5, 0.9);
+      g.beginPath();
+      for (let x = 0.6; x < BRK.W; x += 2.4) { g.moveTo(x, BRK.H); g.lineTo(x + 1.2, BRK.H); }
+      chalk.stroke(g, C.neg, 0.4, 0.6);
+      g.beginPath();
+      for (let x = 1; x < BRK.W; x += 2.2) { g.moveTo(x, BRK.PAD_Y); g.lineTo(x + 0.4, BRK.PAD_Y); }
+      chalk.stroke(g, C.dim, 0.22, 0.25);
+    }, 0.85);
+    const bw = BRK.W / BRK.COLS;
+    SPR.bricks = ROW_COLORS.map(function (color) {
+      return unit(bw, BRK.BRICK_H, function (g) {
+        g.beginPath(); g.roundRect(0.3, 0.3, bw - 0.6, BRK.BRICK_H - 0.6, 0.5);
+        g.globalAlpha = 0.16; g.fillStyle = color; g.fill(); g.globalAlpha = 1;
+        chalk.hatch(g, { x: 0, y: 0, w: bw, h: BRK.BRICK_H }, color, 0.8, 0.22, 0.55, Math.PI / 4);
+        g.beginPath(); g.roundRect(0.3, 0.3, bw - 0.6, BRK.BRICK_H - 0.6, 0.5);
+        chalk.stroke(g, color, 0.38, 0.95);
+      }, 0.6);
+    });
+    SPR.paddle = {};
+    [['human', C.human], ['machine', C.machine]].forEach(function (p) {
+      SPR.paddle[p[0]] = unit(spec.paddle + 1, BRK.PAD_H + 1, function (g) {
+        g.beginPath(); g.roundRect(0.5, 0.5, spec.paddle, BRK.PAD_H, BRK.PAD_H / 2);
+        g.fillStyle = p[1]; g.fill();
+        g.strokeStyle = C.board; g.lineWidth = 0.3; g.stroke();
+        g.beginPath(); g.moveTo(1.6, 0.5 + BRK.PAD_H * 0.32); g.lineTo(spec.paddle - 0.6, 0.5 + BRK.PAD_H * 0.32);
+        g.strokeStyle = 'rgba(255, 255, 255, 0.35)'; g.lineWidth = 0.28; g.stroke();
+      }, 0.4);
+    });
+    SPR.ball = unit(2.4, 2.4, function (g) {
+      g.beginPath(); g.arc(1.2, 1.2, BRK.R + 0.1, 0, Math.PI * 2);
+      g.fillStyle = C.chalk; g.fill();
+    }, 0.45);
+  }
+
+  // ---------- drawing ----------
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  // Soft patch of board colour behind text so it stays legible.
+  function halo(x, y, rx, ry) {
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, rx);
+    gr.addColorStop(0, 'rgba(29, 58, 50, 0.85)');
+    gr.addColorStop(0.6, 'rgba(29, 58, 50, 0.55)');
+    gr.addColorStop(1, 'rgba(29, 58, 50, 0)');
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-x, -y);
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(x, y, rx, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Text centred on view point (x, y), in world units.
+  function caption(text, size, color, x, y) {
+    halo(x * S, y * S, text.length * size * 0.32 * S + 5 * S, size * 1.2 * S);
+    blit(ctx, chalk.text(text, Math.round(size * S), color, 740), x * S, y * S);
+  }
+
+  // Cells for the paddle's centre, given the ball as it is now.
+  function stripCells(c) {
+    const f = breakFeatures(c);
+    const half = c.spec.paddle / 2;
+    const cells = [];
+    for (let j = 0; j <= B_DX.length; j++) {
+      const lo = Math.max(half, j === B_DX.length ? -Infinity : c.bx - B_DX[j]);
+      const hi = Math.min(BRK.W - half, j === 0 ? Infinity : c.bx - B_DX[j - 1]);
+      if (hi - lo < 0.01) continue;
+      const cf = { dx: c.bx - (lo + hi) / 2, falling: f.falling, height: f.height, vx: f.vx, bx: f.bx };
+      cells.push({ x0: lo, x1: hi, y0: BRK.PAD_Y + 1.2, y1: BRK.PAD_Y + 3.6, f: cf, k: breakEncode(cf) });
+    }
+    return cells;
+  }
+
+  function drawOverlay(c, ox) {
+    ctx.save();
+    const f = breakFeatures(c);
+    const ys = [BRK.PAD_Y + 4].concat(B_HEIGHT.map(function (h) { return BRK.PAD_Y - h; }), [0]);
+    const xs = [0].concat(B_BAND, [BRK.W]);
+    const hb = binOf(f.height, B_HEIGHT), xb = binOf(f.bx, B_BAND);
+    const top = Math.max(0, ys[hb + 1]), bottom = Math.min(BRK.PAD_Y, ys[hb]);
+    if (bottom > top) {
+      ctx.fillStyle = 'rgba(236, 238, 228, 0.06)';
+      ctx.fillRect(SX(ox, xs[xb]), SY(top), (xs[xb + 1] - xs[xb]) * S, (bottom - top) * S);
+    }
+    ctx.strokeStyle = C.dim;
+    ctx.globalAlpha = 0.45;
+    ctx.lineWidth = Math.max(1, 0.2 * S);
+    ctx.setLineDash([0.8 * S, 1 * S]);
+    ctx.beginPath();
+    B_BAND.forEach(function (x) { ctx.moveTo(SX(ox, x), SY(0)); ctx.lineTo(SX(ox, x), SY(BRK.PAD_Y)); });
+    B_HEIGHT.forEach(function (h) { ctx.moveTo(SX(ox, 0), SY(BRK.PAD_Y - h)); ctx.lineTo(SX(ox, BRK.W), SY(BRK.PAD_Y - h)); });
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
+    const cells = stripCells(c);
+    const here = breakState(c);
+    cells.forEach(function (cell) {
+      const x0 = SX(ox, cell.x0), x1 = SX(ox, cell.x1), y0 = SY(cell.y0), y1 = SY(cell.y1), w = (x1 - x0) / 3;
+      const row = qRow(cell.k);
+      for (let a = 0; a < 3; a++) { ctx.fillStyle = tintFill(row[a]); ctx.fillRect(x0 + a * w, y0, w, y1 - y0); }
+      ctx.strokeStyle = 'rgba(29, 58, 50, 0.95)';
+      ctx.lineWidth = Math.max(1, 0.16 * S);
+      ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+      const a = policy(cell.k);
+      const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, r = Math.min(0.9 * S, (x1 - x0) * 0.3);
+      ctx.strokeStyle = C.chalk;
+      ctx.fillStyle = C.chalk;
+      ctx.lineWidth = Math.max(1.2, 0.28 * S);
+      ctx.beginPath();
+      if (a === 1) { ctx.arc(cx, cy, Math.max(1.2, r * 0.3), 0, Math.PI * 2); ctx.fill(); }
+      else {
+        const d = a === 0 ? -1 : 1;
+        ctx.moveTo(cx - d * r * 0.35, cy - r * 0.8); ctx.lineTo(cx + d * r * 0.45, cy); ctx.lineTo(cx - d * r * 0.35, cy + r * 0.8);
+        ctx.stroke();
+      }
+      if (cell.k === here || (hoverCell && hoverCell.k === cell.k)) {
+        ctx.save();
+        ctx.strokeStyle = cell.k === here ? C.machine : C.chalk;
+        ctx.lineWidth = Math.max(1.5, 0.3 * S);
+        ctx.setLineDash([0.7 * S, 0.5 * S]);
+        ctx.strokeRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2);
+        ctx.restore();
+      }
+    });
+    ctx.restore();
+    return cells;
+  }
+
+  function drawCourt(c, i, alpha, label) {
+    const ox = ORIGIN[i];
+    ctx.drawImage(SPR.court, Math.round((ox - 1) * S), Math.round((PADV - 1) * S));
+    for (let b = 0; b < BRICKS; b++) {
+      if (!c.bricks[b]) continue;
+      const box = brickBox(b);
+      ctx.drawImage(SPR.bricks[Math.floor(b / BRK.COLS)], Math.round(SX(ox, box.x0)), Math.round(SY(box.y0)));
+    }
+    let cells = null;
+    if (i === 1 && overlayVisible()) cells = drawOverlay(c, ox);
+    // paddle with two eyes on the ball
+    const px = lerp(c.prev.px, c.px, alpha);
+    const img = SPR.paddle[c.who];
+    ctx.drawImage(img, Math.round(SX(ox, px) - img.width / 2), Math.round(SY(BRK.PAD_Y) - img.height / 2));
+    [-1, 1].forEach(function (side) {
+      const ex = px + side * c.spec.paddle * 0.16, ey = BRK.PAD_Y - 0.55;
+      const dx = c.bx - ex, dy = c.by - ey, d = Math.hypot(dx, dy) || 1;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(SX(ox, ex), SY(ey), 0.5 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = C.board;
+      ctx.beginPath(); ctx.arc(SX(ox, ex + dx / d * 0.2), SY(ey + dy / d * 0.2), 0.27 * S, 0, Math.PI * 2); ctx.fill();
+    });
+    if (c.live) {
+      c.trail.forEach(function (p, n) {
+        ctx.globalAlpha = 0.08 + 0.32 * n / c.trail.length;
+        ctx.fillStyle = C.chalk;
+        ctx.beginPath(); ctx.arc(SX(ox, p.x), SY(p.y), (0.25 + 0.45 * n / c.trail.length) * S, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+      blit(ctx, SPR.ball, SX(ox, lerp(c.prev.bx, c.bx, alpha)), SY(lerp(c.prev.by, c.by, alpha)));
+    }
+    // footer: name, balls left, bricks broken
+    const fy = PADV + BRK.H + FOOT / 2 + 0.4;
+    const color = c.who === 'human' ? C.human : C.machine;
+    const name = chalk.text(label, Math.round(3 * S), color, 680);
+    ctx.drawImage(name, Math.round(ox * S), Math.round(fy * S - name.height / 2));
+    const lives = c.balls === Infinity ? 0 : c.balls - (c.live ? 1 : 0);
+    for (let n = 0; n < lives; n++) {
+      ctx.fillStyle = C.chalk;
+      ctx.globalAlpha = 0.8;
+      ctx.beginPath(); ctx.arc(ox * S + name.width + (1.4 + n * 2.2) * S, fy * S, 0.75 * S, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    const tally = chalk.text(broken(c) + ' / ' + BRICKS, Math.round(3 * S), C.chalk, 680);
+    ctx.drawImage(tally, Math.round((ox + BRK.W) * S - tally.width), Math.round(fy * S - tally.height / 2));
+    if (c.banner) {
+      ctx.globalAlpha = Math.min(1, c.banner.life / 0.4);
+      caption(c.banner.text, 3.4, color, ox + BRK.W / 2, PADV + 38);
+      ctx.globalAlpha = 1;
+    }
+    return cells;
+  }
+
+  function drawEffects() {
+    particles.forEach(function (p) {
+      ctx.globalAlpha = Math.max(0, p.life / p.max) * 0.85;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(SX(p.ox, p.x), SY(p.y), p.r * S, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  function drawHud() {
+    const mx = VIEW_W / 2, my = PADV + 40;
+    if (phase === 'training') {
+      caption('your court', 4, C.human, ORIGIN[0] + BRK.W / 2, PADV + 36);
+      blit(ctx, chalk.text('opens after training', Math.round(2.6 * S), C.dim, 620), (ORIGIN[0] + BRK.W / 2) * S, (PADV + 41) * S);
+      return;
+    }
+    if (phase === 'ready') { caption('Serve to start', 5, C.chalk, mx, my); return; }
+    if (phase === 'match' && paused) { caption('Paused', 5, C.chalk, mx, my); return; }
+    if (phase === 'over') {
+      const title = result === 'draw' ? 'Draw' : result === 'human' ? 'You win' : 'The machine wins';
+      caption(title, 5.6, result === 'draw' ? C.chalk : result === 'human' ? C.human : C.machine, mx, my);
+    }
+  }
+
+  function draw(alpha) {
+    if (!SPR) return;
+    const left = phase === 'training' ? idle : courts && courts[0];
+    const right = phase === 'training' ? demo : courts && courts[1];
+    if (!left || !right) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    hoverCell = null;
+    drawCourt(left, 0, phase === 'training' ? 1 : alpha, 'you');
+    const cells = drawCourt(right, 1, alpha, phase === 'training' ? 'practice' : 'machine');
+    if (cells && pointer) hoverCell = cells.filter(function (c) { return pointer.x >= c.x0 && pointer.x < c.x1 && pointer.y >= c.y0 && pointer.y < c.y1; })[0] || null;
+    drawEffects();
+    drawHud();
+  }
+
+  // ---------- effects ----------
+  function burst(ox, x, y, color, n, speed) {
+    if (reduceMotion) return;
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2, v = speed * (0.4 + Math.random());
+      particles.push({ ox: ox, x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 0.2 + Math.random() * 0.3, life: 0.55, max: 0.55, color: i % 3 ? color : C.chalk });
+    }
+  }
+  function effects(c, ox, ev) {
+    if (ev.brick !== -1) {
+      const b = brickBox(ev.brick);
+      burst(ox, (b.x0 + b.x1) / 2, (b.y0 + b.y1) / 2, ROW_COLORS[Math.floor(ev.brick / BRK.COLS)], 10, 12);
+    }
+    if (ev.hit) burst(ox, c.bx, BRK.PAD_Y - 1, c.who === 'human' ? C.human : C.machine, 6, 9);
+    if (ev.lost) burst(ox, Math.max(0, Math.min(BRK.W, c.bx)), BRK.H, C.neg, 16, 14);
+  }
+
+  function updateEffects(dt) {
+    particles.forEach(function (p) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.96; p.vy *= 0.96; p.life -= dt; });
+    particles = particles.filter(function (p) { return p.life > 0; });
+    [courts && courts[0], courts && courts[1]].forEach(function (c) {
+      if (c && c.banner) { c.banner.life -= dt; if (c.banner.life <= 0) c.banner = null; }
+    });
+  }
+
+  // ---------- side panel ----------
+  const HEIGHT_TEXT = ['within 6 of the paddle line', '6–14 above the paddle', '14–26 above the paddle', '26–40 above the paddle', 'more than 40 above the paddle'];
+  const VX_TEXT = ['drifting left fast', 'drifting left', 'moving almost straight', 'drifting right', 'drifting right fast'];
+  const BAND_TEXT = ['by the left wall (x 0–8)', 'x 8–16', 'x 16–24', 'x 24–32', 'x 32–40', 'by the right wall (x 40–48)'];
+  function dxText(dx) {
+    const j = binOf(dx, B_DX);
+    const lo = j === 0 ? -Infinity : B_DX[j - 1], hi = j === B_DX.length ? Infinity : B_DX[j];
+    if (hi === Infinity) return 'more than ' + lo + ' right of the paddle centre';
+    if (lo === -Infinity) return 'more than ' + (-hi) + ' left of the paddle centre';
+    if (lo < 0 && hi > 0) return 'right over the paddle centre';
+    return hi <= 0 ? (-hi) + '–' + (-lo) + ' left of the paddle centre' : lo + '–' + hi + ' right of the paddle centre';
+  }
+  function describe(f) {
+    return 'Ball ' + (f.falling ? 'falling' : 'rising') + ', ' + HEIGHT_TEXT[binOf(f.height, B_HEIGHT)] + ', ' + dxText(f.dx) + ', ' +
+      VX_TEXT[binOf(f.vx, B_VX)] + ', ' + BAND_TEXT[binOf(f.bx, B_BAND)] + '.';
+  }
+
+  function overlayVisible() { return !!trainer && (showQ || phase === 'training'); }
+
+  let compassKey = '';
+  function renderCompass() {
+    const boxes = document.querySelectorAll('#compass .q');
+    const c = phase === 'training' ? demo : courts && courts[1];
+    let k = null, text = '', title = 'Q-values';
+    if (hoverCell) {
+      k = hoverCell.k; text = describe(hoverCell.f); title = 'Q-values in the cell you point at';
+    } else if (trainer && c && c.live) {
+      const f = breakFeatures(c);
+      k = breakEncode(f); text = describe(f);
+      title = phase === 'training' ? 'Q-values of the learner' : 'Q-values of the machine';
+    }
+    const row = k === null ? null : qRow(k);
+    const key = title + '|' + k + '|' + text + '|' + (row ? row.map(fmt).join(',') : '');
+    if (key === compassKey) return;
+    compassKey = key;
+    $('compass-title').textContent = title;
+    if (k === null) {
+      $('compass-center').textContent = '';
+      boxes.forEach(function (b) { b.querySelector('.qv').textContent = ''; b.classList.remove('best'); b.style.color = ''; });
+      $('compass-note').textContent = trainer ? 'No ball in play on the machine\'s court. Its values show once a ball is served.' : '';
+      return;
+    }
+    if (!overlayVisible()) SCALE = buildScale();
+    const best = bestActions(row);
+    boxes.forEach(function (b) {
+      const a = Number(b.dataset.a);
+      b.querySelector('.qv').textContent = fmt(row[a]);
+      b.style.color = tintText(row[a]);
+      b.classList.toggle('best', best.indexOf(a) !== -1);
+    });
+    $('compass-center').textContent = 'state ' + k;
+    $('compass-note').textContent = text + ' The outlined value is the move it picks.';
+  }
+
+  function renderPolicyFacts(done) {
+    if (!trainer || !lastEval) {
+      $('fact-policy').textContent = '';
+      $('fact-training').textContent = '';
+      return;
+    }
+    $('fact-policy').textContent = 'With one ball on each of 8 test walls, the greedy paddle breaks ' + Math.round(100 * lastEval.share) + '% of the bricks and clears ' +
+      lastEval.cleared + (lastEval.cleared === 1 ? ' wall' : ' walls') + ', returning the ball ' + lastEval.returns + ' times and losing it ' + lastEval.lost + (lastEval.lost === 1 ? ' time.' : ' times.');
+    $('fact-training').textContent = (done ? 'Trained for ' : 'So far ') + count(Math.round(trainer.progress() * params.steps)) +
+      ' steps in ' + count(trainer.episodes()) + ' balls, visiting ' + count(trainer.visited()) + ' of ' + count(BRK_STATES) + ' states.';
+  }
+
+  function renderStatus(title, html) {
+    $('status-title').textContent = title;
+    $('status-text').innerHTML = html;
+  }
+
+  function lastMoveText() {
+    if (!lastMachine) return '';
+    const name = BRK_ACTIONS[lastMachine.a];
+    return lastMachine.kind === 'explore'
+      ? ' Its last move was ' + name + ', a random one (ε).'
+      : ' Its last move was ' + name + ', Q = ' + fmt(lastMachine.q) + '.';
+  }
+
+  function clockText() {
+    const s = Math.ceil(ticksLeft / 45);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function renderMatch() {
+    $('bricks-human').textContent = courts ? broken(courts[0]) : 0;
+    $('bricks-machine').textContent = courts ? broken(courts[1]) : 0;
+    $('clock').textContent = clockText();
+    $('pause').disabled = phase !== 'match';
+    $('pause').textContent = paused ? 'Resume' : 'Pause';
+    document.querySelectorAll('.pad button').forEach(function (b) { b.disabled = phase !== 'match'; });
+  }
+
+  function renderScore() {
+    $('score-human').textContent = score.human;
+    $('score-machine').textContent = score.machine;
+    $('score-draw').textContent = score.draw;
+  }
+
+  function showDock(which) {
+    docks.training.hidden = which !== 'training';
+    docks.ready.hidden = which !== 'ready';
+    docks.race.hidden = which !== 'match' && which !== 'over';
+    docks.over.hidden = which !== 'over';
+  }
+
+  function renderParams() {
+    const m = methodOf(params.method);
+    $('method').value = m.key;
+    $('method-info').textContent = m.info;
+    $('p-alpha').value = params.alpha;
+    $('p-gamma').value = params.gamma;
+    $('p-lambda').value = params.lambda;
+    $('p-steps').value = params.steps;
+    $('r-brick').value = params.rewards.brick;
+    $('r-hit').value = params.rewards.hit;
+    $('r-lost').value = params.rewards.lost;
+    $('field-lambda').hidden = m.key !== 'sarsa-lambda' && m.key !== 'q-lambda';
+    const spec = COURTS[courtKey];
+    $('court-info').textContent = 'A ' + BRK.COLS + ' × ' + BRK.ROWS + ' wall on a ' + BRK.W + ' × ' + BRK.H + ' court; the paddle is ' + spec.paddle +
+      ' wide and the ball starts at ' + spec.speed + ' per tick, speeding up to ' + spec.top + '. Changing the court retrains the paddle for ' + count(spec.steps) + ' steps.';
+  }
+
+  // ---------- chart ----------
+  function drawChart() {
+    const svg = $('chart-svg');
+    svg.textContent = '';
+    const w = Math.max(200, svg.clientWidth || 320), h = 86, top = 8, bottom = 70, left = 38;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    const x = function (p) { return left + p * (w - left); };
+    const y = function (v) { return bottom - v * (bottom - top); };
+    el('line', { class: 'axis', x1: left, y1: bottom, x2: w, y2: bottom }, svg);
+    el('line', { class: 'axis', x1: left, y1: top, x2: w, y2: top }, svg);
+    el('line', { class: 'eps-line', x1: x(EXPLORE_SHARE), y1: top, x2: x(EXPLORE_SHARE), y2: bottom }, svg);
+    const t100 = el('text', { x: left - 6, y: top + 4, 'text-anchor': 'end' }, svg); t100.textContent = '100%';
+    const t0 = el('text', { x: left - 6, y: bottom + 4, 'text-anchor': 'end' }, svg); t0.textContent = '0%';
+    const te = el('text', { x: x(EXPLORE_SHARE), y: h - 2, 'text-anchor': 'middle' }, svg); te.textContent = 'ε = 0';
+    const ts = el('text', { x: w, y: h - 2, 'text-anchor': 'end' }, svg); ts.textContent = 'all steps';
+    if (history.length < 2) return;
+    const pts = history.map(function (p) { return x(p.x).toFixed(1) + ',' + y(p.v).toFixed(1); });
+    el('polygon', { class: 'area', points: left + ',' + bottom + ' ' + pts.join(' ') + ' ' + x(history[history.length - 1].x).toFixed(1) + ',' + bottom }, svg);
+    el('polyline', { class: 'curve', points: pts.join(' ') }, svg);
+  }
+
+  // ---------- court ticks ----------
+  function courtTick(c, i, a) {
+    c.prev.px = c.px; c.prev.bx = c.bx; c.prev.by = c.by;
+    const wasLive = c.live;
+    const ev = breakStep(c, a);
+    if (wasLive) {
+      c.trail.push({ x: c.bx, y: c.by });
+      if (c.trail.length > TRAIL) c.trail.shift();
+      effects(c, ORIGIN[i], ev);
+      if (ev.lost) { c.balls--; c.wait = SERVE_WAIT; c.trail = []; }
+    } else if (c.balls > 0 && --c.wait <= 0) {
+      serveBall(c);
+      c.prev.bx = c.bx; c.prev.by = c.by;
+    }
+    return ev;
+  }
+
+  // ---------- training ----------
+  function startDemo() {
+    demo = newCourt(newSeed(), 'machine');
+    demo.balls = Infinity;
+    demo.wait = 20;
+  }
+
+  function demoTick() {
+    courtTick(demo, 1, demo.live ? policy(breakState(demo)) : 1);
+    if (demo.left === 0) startDemo();
+  }
+
+  function train() {
+    phase = 'training';
+    paused = false;
+    lastMachine = null;
+    result = null;
+    particles = [];
+    courts = null;
+    idle = newCourt(0, 'human');
+    trainer = createTrainer(makeBreakoutEnv(COURTS[courtKey], params.rewards, Math.random, EPISODE_CAP), {
+      method: params.method, alpha: params.alpha, gamma: params.gamma, lambda: params.lambda,
+      steps: params.steps, rng: Math.random
+    });
+    lastEval = evaluate();
+    history = [{ x: 0, v: lastEval.share }];
+    startDemo();
+    showDock('training');
+    $('retrain').disabled = true;
+    $('train-label').textContent = 'Training with ' + methodOf(params.method).name;
+    drawChart();
+    renderMatch();
+    if (reduceMotion) finishNow();
+  }
+
+  function trainFrame() {
+    const done = trainer.run(Math.ceil(params.steps / TRAIN_FRAMES));
+    lastEval = evaluate();
+    history.push({ x: trainer.progress(), v: lastEval.share });
+    const pct = Math.round(trainer.progress() * 100);
+    $('train-bar').style.width = pct + '%';
+    $('train-pct').textContent = pct + '%';
+    renderStatus('Training', methodOf(params.method).name + ', ball ' + count(trainer.episodes()) + ', ε = ' + trainer.epsilon().toFixed(2) +
+      '. On the right, the learner practises with what it knows so far.');
+    drawChart();
+    renderPolicyFacts(done);
+    if (done) finishTraining();
+  }
+
+  function finishNow() {
+    if (phase !== 'training' || !trainer) return;
+    trainer.run(params.steps);
+    lastEval = evaluate();
+    history.push({ x: 1, v: lastEval.share });
+    drawChart();
+    finishTraining();
+  }
+
+  function finishTraining() {
+    $('retrain').disabled = false;
+    $('train-bar').style.width = '100%';
+    renderPolicyFacts(true);
+    ready();
+  }
+
+  // ---------- match ----------
+  function ready(seed) {
+    phase = 'ready';
+    paused = false;
+    matchSeed = seed === undefined ? newSeed() : seed;
+    courts = [newCourt(matchSeed, 'human'), newCourt(matchSeed, 'machine')];
+    ticksLeft = MATCH_TICKS;
+    lastMachine = null;
+    result = null;
+    particles = [];
+    showDock('ready');
+    renderStatus('Ready', 'You play the <span class="tag human">blue</span> paddle on the left court, the machine the <span class="tag machine">yellow</span> one on the right. Same wall, same serves, ' + BALLS + ' balls each.');
+    renderMatch();
+  }
+
+  function startMatch() {
+    if (phase !== 'ready') return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    phase = 'match';
+    acc = 0;
+    courts.forEach(function (c) { c.wait = 24; });
+    showDock('match');
+    renderStatus('Playing', 'Most bricks wins. The clock shows ' + clockText() + '.');
+    renderMatch();
+  }
+
+  function humanAct() {
+    const l = held.has('left'), r = held.has('right');
+    if (l !== r) return l ? 0 : 2;
+    if (targetX !== null) return steer(targetX, courts[0].px, 0.9);
+    return 1;
+  }
+  function steer(target, x, band) { return target < x - band ? 0 : target > x + band ? 2 : 1; }
+
+  function machineAct() {
+    const row = qRow(breakState(courts[1]));
+    let a, kind;
+    if (Math.random() < raceEps) {
+      a = Math.floor(Math.random() * 3);
+      kind = 'explore';
+    } else {
+      const set = bestActions(row);
+      a = set[Math.floor(Math.random() * set.length)];
+      kind = 'greedy';
+    }
+    lastMachine = { a: a, q: row[a], kind: kind };
+    return a;
+  }
+
+  function matchTick() {
+    const h = courts[0], m = courts[1];
+    const eh = courtTick(h, 0, isOut(h) ? 1 : humanAct());
+    const em = courtTick(m, 1, m.live ? machineAct() : 1);
+    ticksLeft--;
+    if (ticksLeft % 45 === 0 || eh.brick !== -1 || em.brick !== -1) renderMatch();
+    [[h, eh, 'You'], [m, em, 'The machine']].forEach(function (x) {
+      if (!x[1].lost) return;
+      const c = x[0];
+      c.banner = { text: c.balls ? 'ball lost · ' + c.balls + ' left' : 'out of balls', life: 1.4 };
+      renderStatus('Playing', x[2] + (c.balls ? ' lost a ball; ' + c.balls + ' left.' : ' lost the last ball, at ' + bricks(broken(c)) + '.') +
+        (c === m ? lastMoveText() : '') + ' Bricks ' + broken(h) + ' : ' + broken(m) + '.');
+    });
+    judge();
+  }
+
+  function judge() {
+    const h = courts[0], m = courts[1], hb = broken(h), mb = broken(m);
+    if (h.left === 0 && m.left === 0) return finish('draw', 'You both cleared the wall on the same tick.');
+    if (h.left === 0) return finish('human', 'You cleared your wall first; the machine had ' + bricks(mb) + '.');
+    if (m.left === 0) return finish('machine', 'The machine cleared its wall first; you had ' + bricks(hb) + '.');
+    const ho = isOut(h), mo = isOut(m);
+    if (ho && mo) {
+      if (hb === mb) return finish('draw', 'Both out of balls, level at ' + bricks(hb) + '.');
+      return finish(hb > mb ? 'human' : 'machine', 'Both out of balls, ' + hb + ' : ' + mb + ' in bricks.');
+    }
+    if (ho && mb > hb) return finish('machine', 'You were out of balls at ' + bricks(hb) + ', and the machine has passed that.');
+    if (mo && hb > mb) return finish('human', 'The machine was out of balls at ' + bricks(mb) + ', and you have passed that.');
+    if (ticksLeft <= 0) {
+      if (hb === mb) return finish('draw', 'Time is up, level at ' + bricks(hb) + '.');
+      return finish(hb > mb ? 'human' : 'machine', 'Time is up, ' + hb + ' : ' + mb + ' in bricks.');
+    }
+  }
+
+  function finish(who, why) {
+    phase = 'over';
+    result = who;
+    score[who] += 1;
+    save();
+    renderScore();
+    courts.forEach(function (c) { c.live = false; c.prev.px = c.px; c.banner = null; });
+    renderMatch();
+    const title = who === 'draw' ? 'Draw' : who === 'human' ? 'You win' : 'The machine wins';
+    $('end-title').textContent = title;
+    renderStatus(title, why);
+    showDock('over');
+    $('again').focus({ preventScroll: true });
+  }
+
+  function togglePause() {
+    if (phase !== 'match') return;
+    paused = !paused;
+    renderMatch();
+    renderStatus(paused ? 'Paused' : 'Playing', paused ? 'Press P or Resume to carry on. The Q-values hold still while you read them.'
+      : 'Bricks ' + broken(courts[0]) + ' : ' + broken(courts[1]) + ', ' + clockText() + ' left.');
+  }
+
+  // ---------- loop ----------
+  let lastT = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.1, Math.max(0, (now - lastT) / 1000));
+    lastT = now;
+    if (phase === 'training') trainFrame();
+    const period = 1 / SPEEDS[speedKey].hz;
+    let alpha = 1;
+    if ((phase === 'match' && !paused) || phase === 'training') {
+      acc += dt;
+      let n = 0;
+      while (acc >= period && n++ < 6) {
+        acc -= period;
+        if (phase === 'match') matchTick(); else if (phase === 'training') demoTick();
+        if (phase !== 'match' && phase !== 'training') break;
+      }
+      if (phase === 'match' || phase === 'training') alpha = Math.min(1, acc / period);
+    }
+    updateEffects(dt);
+    draw(alpha);
+    renderCompass();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- controls ----------
+  const KEYS = { ArrowLeft: 'left', a: 'left', A: 'left', ArrowRight: 'right', d: 'right', D: 'right' };
+  document.addEventListener('keydown', function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+    if (e.key in KEYS) {
+      if (phase === 'match' || phase === 'ready') { e.preventDefault(); held.add(KEYS[e.key]); }
+    } else if (e.key === ' ') {
+      e.preventDefault();
+      if (phase === 'ready') startMatch();
+    } else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+      togglePause();
+    }
+  });
+  document.addEventListener('keyup', function (e) { if (e.key in KEYS) held.delete(KEYS[e.key]); });
+  window.addEventListener('blur', function () { held.clear(); targetX = null; dragging = false; });
+
+  // Which court a pointer is over (0 yours, 1 the machine's), in that court's coordinates.
+  function locate(e) {
+    const r = cv.getBoundingClientRect();
+    const vx = (e.clientX - r.left) / r.width * VIEW_W, vy = (e.clientY - r.top) / r.height * VIEW_H;
+    const i = vx >= ORIGIN[1] - GAP / 2 ? 1 : 0;
+    return { i: i, x: vx - ORIGIN[i], y: vy - PADV };
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    if (phase === 'ready') startMatch();
+    if (e.pointerType === 'mouse' || phase !== 'match') return;
+    cv.setPointerCapture(e.pointerId);
+    dragging = true;
+    targetX = locate(e).x;
+  });
+  cv.addEventListener('pointermove', function (e) {
+    const p = locate(e);
+    if (e.pointerType === 'mouse') {
+      pointer = p.i === 1 ? p : null;
+      targetX = p.i === 0 ? p.x : null;
+    } else if (dragging) {
+      targetX = p.x;
+    }
+  });
+  ['pointerup', 'pointercancel'].forEach(function (t) {
+    cv.addEventListener(t, function (e) { if (e.pointerType !== 'mouse') { dragging = false; targetX = null; } });
+  });
+  cv.addEventListener('pointerleave', function (e) { pointer = null; if (e.pointerType === 'mouse') targetX = null; });
+
+  document.querySelectorAll('.pad button').forEach(function (b) {
+    const dir = b.dataset.move;
+    b.addEventListener('pointerdown', function (e) { e.preventDefault(); held.add(dir); b.classList.add('held'); });
+    ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (t) {
+      b.addEventListener(t, function () { held.delete(dir); b.classList.remove('held'); });
+    });
+    b.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  });
+
+  $('pause').addEventListener('click', togglePause);
+  $('serve').addEventListener('click', startMatch);
+  $('new-wall').addEventListener('click', function () { ready(); });
+  $('new-wall-over').addEventListener('click', function () { ready(); });
+  $('again').addEventListener('click', function () { ready(matchSeed); });
+  $('finish-now').addEventListener('click', finishNow);
+  $('retrain').addEventListener('click', train);
+  $('new-race').addEventListener('click', function () { if (phase !== 'training') ready(); });
+  $('reset-score').addEventListener('click', function () {
+    score.human = score.machine = score.draw = 0;
+    save();
+    renderScore();
+  });
+  document.addEventListener('visibilitychange', function () { if (document.hidden && phase === 'match' && !paused) togglePause(); });
+
+  function radios(containerId, name, options, current, onPick) {
+    const box = $(containerId);
+    Object.keys(options).forEach(function (key) {
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = name;
+      input.id = name + '-' + key;
+      input.value = key;
+      input.checked = key === current;
+      const label = document.createElement('label');
+      label.htmlFor = input.id;
+      label.textContent = options[key].name;
+      input.addEventListener('change', function () { if (input.checked) onPick(key); });
+      box.appendChild(input);
+      box.appendChild(label);
+    });
+  }
+  radios('court-picker', 'court', COURTS, courtKey, function (key) {
+    courtKey = key;
+    params.steps = COURTS[key].steps;
+    buildSprites();
+    renderParams();
+    save();
+    train();
+  });
+  radios('speed-picker', 'speed', SPEEDS, speedKey, function (key) { speedKey = key; save(); });
+
+  const methodSel = $('method');
+  METHODS.forEach(function (m) {
+    const o = document.createElement('option');
+    o.value = m.key;
+    o.textContent = m.name;
+    methodSel.appendChild(o);
+  });
+  methodSel.addEventListener('change', function () {
+    params.method = methodSel.value;
+    renderParams();
+    save();
+    train();
+  });
+
+  function bindNumber(id, lo, hi, apply) {
+    const input = $(id);
+    input.addEventListener('change', function () {
+      const v = parseFloat(input.value);
+      if (!isFinite(v) || v < lo || v > hi) { renderParams(); return; }
+      apply(v);
+      renderParams();
+      save();
+      train();
+    });
+  }
+  bindNumber('p-alpha', 0.01, 1, function (v) { params.alpha = v; });
+  bindNumber('p-gamma', 0, 0.999, function (v) { params.gamma = v; });
+  bindNumber('p-lambda', 0, 1, function (v) { params.lambda = v; });
+  bindNumber('p-steps', 1000, 5000000, function (v) { params.steps = Math.round(v); });
+  bindNumber('r-brick', -1e6, 1e6, function (v) { params.rewards.brick = v; });
+  bindNumber('r-hit', -1e6, 1e6, function (v) { params.rewards.hit = v; });
+  bindNumber('r-lost', -1e6, 1e6, function (v) { params.rewards.lost = v; });
+
+  const showQEl = $('show-q');
+  showQEl.checked = showQ;
+  showQEl.addEventListener('change', function () { showQ = showQEl.checked; save(); });
+
+  const epsEl = $('eps');
+  function renderEps() { $('eps-out').textContent = 'ε = ' + raceEps.toFixed(2); }
+  epsEl.value = String(raceEps);
+  epsEl.addEventListener('input', function () { raceEps = parseFloat(epsEl.value); renderEps(); save(); });
+
+  // ---------- boot ----------
+  $('state-count').textContent = count(BRK_STATES);
+  if (window.ResizeObserver) new ResizeObserver(function () { if (Math.round(cv.clientWidth * Math.min(2.5, window.devicePixelRatio || 1)) !== cv.width) resize(); }).observe(cv);
+  resize();
+  renderEps();
+  renderScore();
+  renderParams();
+  train();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
