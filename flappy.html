@@ -1,0 +1,2060 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flappy Race</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wdth,wght@12..96,75..100,400..800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page: #12241E;
+    --board: #1D3A32;
+    --board-edge: #2C4C43;
+    --chalk: #ECEEE4;
+    --chalk-dim: #A3B8AE;
+    --chalk-faint: rgba(236, 238, 228, 0.16);
+    --human: #8FC6EC;
+    --machine: #F2D06B;
+    --pos: #A9DEB2;
+    --neg: #EF9D93;
+    --font: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background:
+      radial-gradient(1200px 700px at 30% -10%, rgba(64, 110, 96, 0.35), transparent 70%),
+      var(--page);
+    color: var(--chalk);
+    font-family: var(--font);
+    font-size: 16px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 36px 24px 48px; }
+
+  /* ---------- header ---------- */
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 20px 40px;
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2.4rem, 6vw, 3.6rem);
+    font-weight: 760;
+    font-variation-settings: "wdth" 78, "opsz" 96;
+    letter-spacing: -0.015em;
+    line-height: 0.95;
+  }
+  .lede { margin: 12px 0 0; max-width: 50ch; color: var(--chalk-dim); font-size: 1.05rem; }
+
+  .score { display: grid; grid-template-columns: repeat(3, auto); gap: 0 32px; margin: 0; }
+  .score div { display: flex; flex-direction: column-reverse; }
+  .score dt { color: var(--chalk-dim); font-size: 0.9rem; }
+  .score dd { margin: 0; font-size: 2.4rem; font-weight: 700; line-height: 1; font-variation-settings: "wdth" 80; }
+  .score .you dd { color: var(--human); }
+  .score .bot dd { color: var(--machine); }
+
+  /* ---------- layout ---------- */
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 660px) minmax(270px, 1fr);
+    gap: 48px;
+    align-items: start;
+    margin-top: 32px;
+  }
+
+  /* ---------- board ---------- */
+  .board-panel {
+    position: relative;
+    border-radius: 22px;
+    padding: clamp(14px, 3.2vw, 30px);
+    background:
+      radial-gradient(110% 80% at 18% 8%, rgba(236, 238, 228, 0.07), transparent 60%),
+      radial-gradient(80% 60% at 88% 92%, rgba(236, 238, 228, 0.05), transparent 60%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .06 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>"),
+      var(--board);
+    box-shadow:
+      inset 0 0 90px rgba(0, 0, 0, 0.38),
+      0 0 0 1px var(--board-edge),
+      0 30px 60px -30px rgba(0, 0, 0, 0.6);
+  }
+
+  .board { position: relative; width: 100%; }
+  .board canvas { display: block; width: 100%; height: auto; touch-action: none; -webkit-tap-highlight-color: transparent; }
+  .board canvas:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 4px; border-radius: 6px; }
+
+  /* ---------- dock under the board ---------- */
+  .dock {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px 20px;
+    margin-top: clamp(14px, 2.6vw, 22px);
+    padding-top: clamp(12px, 2.4vw, 18px);
+    border-top: 1px solid var(--chalk-faint);
+    min-height: 74px;
+  }
+  .dock[hidden] { display: none; }
+  .prompt { margin: 0; color: var(--chalk-dim); max-width: 34ch; }
+  .prompt kbd, .note kbd {
+    padding: 0 0.35em;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.9em;
+    color: var(--chalk);
+  }
+
+  .race { display: grid; grid-template-columns: repeat(3, auto); gap: 0 26px; margin: 0; }
+  .race div { display: flex; flex-direction: column-reverse; }
+  .race dt { color: var(--chalk-dim); font-size: 0.86rem; }
+  .race dd { margin: 0; font-size: 1.7rem; font-weight: 700; line-height: 1.05; font-variation-settings: "wdth" 82; }
+  .race .you dd { color: var(--human); }
+  .race .bot dd { color: var(--machine); }
+
+  .result h2 {
+    margin: 0;
+    font-size: clamp(1.3rem, 3.4vw, 1.5rem);
+    font-weight: 740;
+    font-variation-settings: "wdth" 82, "opsz" 96;
+    line-height: 1.1;
+  }
+  .actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+  .progress { flex: 1 1 200px; min-width: 0; }
+  .progress-head { display: flex; justify-content: space-between; gap: 12px; color: var(--chalk-dim); font-size: 0.92rem; }
+  .bar { height: 8px; margin-top: 8px; border-radius: 999px; background: rgba(236, 238, 228, 0.1); overflow: hidden; }
+  .bar span { display: block; height: 100%; width: 0; border-radius: inherit; background: var(--pos); }
+
+  .btn {
+    padding: 0.6rem 1.1rem;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .btn:hover { border-color: rgba(236, 238, 228, 0.45); }
+  .btn.primary { border-color: var(--chalk); background: var(--chalk); color: var(--page); }
+  .btn.primary:hover { background: #fff; }
+  .btn:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+
+
+  /* ---------- side panel ---------- */
+  aside { min-width: 0; }
+  .status h2 { margin: 0; font-size: 1.85rem; font-weight: 720; font-variation-settings: "wdth" 85; line-height: 1.1; }
+  .status p { margin: 8px 0 0; color: var(--chalk-dim); }
+  .tag { font-weight: 700; }
+  .tag.human { color: var(--human); }
+  .tag.machine { color: var(--machine); }
+
+  .group { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--chalk-faint); }
+  .group-title { margin: 0 0 12px; font-weight: 620; font-size: 1.05rem; }
+  .help { margin: 8px 0 0; max-width: 50ch; color: var(--chalk-dim); font-size: 0.92rem; }
+
+  .compass-wrap { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .compass { display: grid; gap: 4px; }
+  .compass .q {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 150px;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    font-weight: 640;
+    font-size: 0.98rem;
+    background: rgba(236, 238, 228, 0.04);
+  }
+  .compass .q .qn { color: var(--chalk-dim); font-weight: 560; font-size: 0.86rem; }
+  .compass .q.best { box-shadow: inset 0 0 0 2px currentColor; }
+  .compass .center { color: var(--chalk-dim); font-size: 0.86rem; text-align: center; }
+  .compass-note { flex: 1 1 150px; margin: 0; color: var(--chalk-dim); font-size: 0.92rem; max-width: 26ch; }
+
+  .segmented {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 22px;
+  }
+  .segmented input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .segmented label {
+    padding: 0.42rem 0.95rem;
+    border-radius: 999px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--chalk-dim);
+  }
+  .segmented input:checked + label { background: var(--chalk); color: var(--page); }
+  .segmented input:focus-visible + label { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  .segmented.small label { padding: 0.32rem 0.75rem; font-size: 0.92rem; }
+
+  .row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+
+  select, input[type="number"] {
+    padding: 0.45rem 0.7rem;
+    border: 1.5px solid var(--chalk-faint);
+    border-radius: 12px;
+    background: var(--page);
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 600;
+    min-width: 0;
+  }
+  select {
+    padding-right: 2rem;
+    background: var(--page) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%23A3B8AE' stroke-width='2'/></svg>") no-repeat right 0.75rem center;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  select:focus-visible, input[type="number"]:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 2px; }
+  input[type="number"] { width: 100%; }
+
+  .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+  .fields.rewards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .field label { color: var(--chalk-dim); font-size: 0.86rem; }
+  .field[hidden] { display: none; }
+
+  .facts { margin: 14px 0 0; padding: 0; list-style: none; color: var(--chalk-dim); font-size: 0.92rem; max-width: 52ch; }
+  .facts li + li { margin-top: 4px; }
+
+  .chart { margin: 16px 0 0; }
+  .chart svg { display: block; width: 100%; height: 86px; overflow: visible; }
+  .chart .axis { stroke: var(--chalk-faint); stroke-width: 1; }
+  .chart .eps-line { stroke: var(--chalk-dim); stroke-width: 1; stroke-dasharray: 3 4; }
+  .chart .curve { fill: none; stroke: var(--pos); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+  .chart .area { fill: rgba(169, 222, 178, 0.12); }
+  .chart text { fill: var(--chalk-dim); font: 500 11px var(--font); }
+  .chart figcaption { margin-top: 6px; color: var(--chalk-dim); font-size: 0.86rem; }
+
+  .switch { display: inline-flex; align-items: center; gap: 12px; font-weight: 620; font-size: 1.05rem; cursor: pointer; }
+  .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .switch .track {
+    position: relative;
+    flex: none;
+    width: 46px;
+    height: 26px;
+    border-radius: 999px;
+    border: 1.5px solid var(--chalk-faint);
+    background: rgba(236, 238, 228, 0.06);
+    transition: background 0.18s ease, border-color 0.18s ease;
+  }
+  .switch .track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: var(--chalk-dim);
+    transition: transform 0.18s ease, background 0.18s ease;
+  }
+  .switch input:checked + .track { background: rgba(169, 222, 178, 0.22); border-color: var(--pos); }
+  .switch input:checked + .track::after { transform: translateX(20px); background: var(--pos); }
+  .switch input:focus-visible + .track { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+
+  .slider-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .slider-head label { font-weight: 620; font-size: 1.05rem; }
+  .slider-head output { font-weight: 650; }
+  input[type="range"] { width: 100%; margin: 12px 0 0; accent-color: var(--machine); }
+
+  .row-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+  .note { margin: 0; max-width: 52ch; color: var(--chalk-dim); font-size: 0.86rem; }
+  .note + .note { margin-top: 8px; }
+
+  @media (max-width: 920px) {
+    main { grid-template-columns: 1fr; gap: 30px; }
+    .board-panel { max-width: 660px; width: 100%; margin: 0 auto; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 22px 16px 36px; }
+    header { gap: 18px; }
+    .score { gap: 0 24px; }
+    .score dd { font-size: 2rem; }
+    .race { gap: 0 18px; }
+    .race dd { font-size: 1.45rem; }
+    .fields, .fields.rewards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+  .flap {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 50px;
+    padding: 0 22px 0 16px;
+    border: 1.5px solid var(--human);
+    border-radius: 999px;
+    background: rgba(143, 198, 236, 0.1);
+    color: var(--chalk);
+    font: inherit;
+    font-weight: 700;
+    font-size: 1.05rem;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    transition: background 0.12s ease, transform 0.12s ease;
+  }
+  .flap svg { width: 22px; height: 22px; }
+  .flap svg path { fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .flap:hover { background: rgba(143, 198, 236, 0.18); }
+  .flap.held { background: rgba(143, 198, 236, 0.3); transform: translateY(1px); }
+  .flap:focus-visible { outline: 2px dashed var(--chalk); outline-offset: 3px; }
+  .flap:disabled { opacity: 0.35; cursor: default; }
+  .compass { grid-template-columns: 170px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Flappy</h1>
+      <p class="lede">Train a bird with one of seven reinforcement-learning methods, then race it through the same pipes. The first bird to crash loses.</p>
+    </div>
+    <dl class="score" aria-label="Score">
+      <div class="you"><dt>You</dt><dd id="score-human">0</dd></div>
+      <div class="bot"><dt>Machine</dt><dd id="score-machine">0</dd></div>
+      <div><dt>Draws</dt><dd id="score-draw">0</dd></div>
+    </dl>
+  </header>
+
+  <main>
+    <section class="board-panel" aria-label="Game board">
+      <div class="board" id="board">
+        <canvas id="cv" width="1320" height="940" tabindex="0" aria-label="Flight course. Space, the up arrow, a click or a tap flaps your bird."></canvas>
+      </div>
+
+      <div class="dock" id="dock-train" hidden>
+        <div class="progress">
+          <div class="progress-head"><span id="train-label">Training</span><span id="train-pct">0%</span></div>
+          <div class="bar"><span id="train-bar"></span></div>
+        </div>
+        <button class="btn" type="button" id="finish-now">Finish now</button>
+      </div>
+
+      <div class="dock" id="dock-ready" hidden>
+        <p class="prompt">Flap to take off: <kbd>Space</kbd>, <kbd>↑</kbd>, or a click or tap on the sky.</p>
+        <div class="actions">
+          <button class="btn" type="button" id="new-course">New course</button>
+          <button class="btn primary" type="button" id="take-off">Take off</button>
+        </div>
+      </div>
+
+      <div class="dock" id="dock-race" hidden>
+        <dl class="race">
+          <div class="you"><dt>Your pipes</dt><dd id="pipes-human">0</dd></div>
+          <div class="bot"><dt>Machine's pipes</dt><dd id="pipes-machine">0</dd></div>
+          <div><dt>Finish line</dt><dd id="pipes-finish">0</dd></div>
+        </dl>
+        <div class="actions">
+          <button class="btn" type="button" id="pause">Pause</button>
+          <button class="flap" type="button" id="flap-btn" aria-label="Flap">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 15l7-7 7 7"/></svg>
+            <span>Flap</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dock result" id="dock-over" hidden>
+        <h2 id="end-title">Draw</h2>
+        <div class="actions">
+          <button class="btn primary" type="button" id="again">Race again</button>
+          <button class="btn" type="button" id="new-course-over">New course</button>
+        </div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="status" aria-live="polite">
+        <h2 id="status-title">Training</h2>
+        <p id="status-text"></p>
+      </div>
+
+      <div class="group">
+        <p class="group-title" id="compass-title">Q-values</p>
+        <div class="compass-wrap">
+          <div class="compass" id="compass">
+            <div class="q" data-a="1"><span class="qn">flap</span><span class="qv"></span></div>
+            <div class="center" id="compass-center"></div>
+            <div class="q" data-a="0"><span class="qn">glide</span><span class="qv"></span></div>
+          </div>
+          <p class="compass-note" id="compass-note"></p>
+        </div>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Course</p>
+        <div class="segmented" role="radiogroup" aria-label="Course" id="course-picker"></div>
+        <p class="help" id="course-info"></p>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Training</p>
+        <div class="row">
+          <label for="method">Method</label>
+          <select id="method"></select>
+        </div>
+        <p class="help" id="method-info"></p>
+        <div class="fields">
+          <div class="field"><label for="p-alpha">α (step size)</label><input type="number" id="p-alpha" min="0.01" max="1" step="0.01"></div>
+          <div class="field"><label for="p-gamma">γ (discount)</label><input type="number" id="p-gamma" min="0" max="0.999" step="0.01"></div>
+          <div class="field" id="field-lambda"><label for="p-lambda">λ (trace)</label><input type="number" id="p-lambda" min="0" max="1" step="0.05"></div>
+          <div class="field"><label for="p-steps">Steps</label><input type="number" id="p-steps" min="1000" max="5000000" step="1000"></div>
+        </div>
+        <div class="fields rewards">
+          <div class="field"><label for="r-alive">Each tick alive</label><input type="number" id="r-alive" step="0.05"></div>
+          <div class="field"><label for="r-pipe">Pipe cleared</label><input type="number" id="r-pipe" step="0.5"></div>
+          <div class="field"><label for="r-crash">Crash</label><input type="number" id="r-crash" step="1"></div>
+        </div>
+        <p class="help">ε falls from 1 to 0 over the first 60% of the steps. Every training flight gets a fresh random course. The state is the distance to the next pipe, the height of its gap relative to the bird, and the bird's vertical speed, cut into <span id="state-count"></span> bins.</p>
+        <figure class="chart" id="chart" aria-label="Training progress chart">
+          <svg id="chart-svg"></svg>
+          <figcaption>Average pipes the greedy bird clears on 8 fixed test courses (stopping at 50), across training. The dashed line is where ε reaches 0.</figcaption>
+        </figure>
+        <ul class="facts">
+          <li id="fact-policy"></li>
+          <li id="fact-training"></li>
+        </ul>
+        <div class="row">
+          <button class="btn" type="button" id="retrain">Train again</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="switch">
+          <input type="checkbox" role="switch" id="show-q">
+          <span class="track" aria-hidden="true"></span>
+          <span>Show the policy on the board</span>
+        </label>
+        <p class="help">The bins in front of the machine's next pipe, at its current speed. The top half of each cell is tinted by Q(flap), the bottom half by Q(glide): green for positive, red for negative. The chalk mark is the move the bird makes there: a chevron to flap, a dash to glide. Point at a cell to read its values.</p>
+      </div>
+
+      <div class="group">
+        <div class="slider-head">
+          <label for="eps">Exploration in the race</label>
+          <output id="eps-out" for="eps">ε = 0.00</output>
+        </div>
+        <input type="range" id="eps" min="0" max="1" step="0.05" value="0">
+        <p class="help">Chance, on every tick, that the machine ignores its Q-table and flaps or glides at random. At 0, a well-trained bird rarely crashes, so the best you can usually do is a draw.</p>
+      </div>
+
+      <div class="group">
+        <p class="group-title">Game speed</p>
+        <div class="segmented small" role="radiogroup" aria-label="Game speed" id="speed-picker"></div>
+      </div>
+
+      <div class="group row-actions">
+        <button class="btn" type="button" id="new-race">New race</button>
+        <button class="btn" type="button" id="reset-score">Reset score</button>
+      </div>
+
+      <div class="group">
+        <p class="note">Both birds fly the same pipes with the same physics, side by side. The first to hit a pipe, the ground or the ceiling loses. Crossing the finish line together, or crashing on the same tick, is a draw.</p>
+        <p class="note"><kbd>Space</kbd>, <kbd>↑</kbd> or <kbd>W</kbd> flaps; so does a click or tap on the board. <kbd>P</kbd> pauses.</p>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+// Tabular RL trainer. Shared by the page and the Node tests.
+// env: { nStates, nActions, cap, reset() -> s, step(a) -> { s, r, done } }
+//   The env keeps its own simulator; s is the discretised state index.
+// cfg: { method, alpha, gamma, lambda, steps, rng }
+// ε falls linearly from 1 to 0 over the first EXPLORE_SHARE of the steps, then stays 0.
+// Episodes stop when the env reports done or after env.cap steps. Monte Carlo uses exploring starts.
+const EXPLORE_SHARE = 0.6;
+
+function createTrainer(env, cfg) {
+  const A = env.nActions;
+  const N = env.nStates;
+  const rnd = cfg.rng;
+  const QA = new Float64Array(N * A);
+  const QB = cfg.method === 'double' ? new Float64Array(N * A) : null;
+  for (let i = 0; i < N * A; i++) {
+    QA[i] = rnd() / 100;
+    if (QB) QB[i] = rnd() / 100;
+  }
+  const seen = new Uint8Array(N);
+  const usesTraces = cfg.method === 'sarsa-lambda' || cfg.method === 'q-lambda';
+  const E = usesTraces ? new Float64Array(N * A) : null;
+  let active = [];
+  let t = 0, s = 0, a = 0, epLen = 0, episodes = 0, seenCount = 0;
+  let buffer = [];
+
+  function value(k, b) { return QB ? (QA[k * A + b] + QB[k * A + b]) / 2 : QA[k * A + b]; }
+
+  function argmax(get, k) {
+    let best = -Infinity, ties = [];
+    for (let b = 0; b < A; b++) {
+      const v = get(k, b);
+      if (v > best + 1e-12) { best = v; ties = [b]; } else if (Math.abs(v - best) <= 1e-12) ties.push(b);
+    }
+    return ties.length === 1 ? ties[0] : ties[Math.floor(rnd() * ties.length)];
+  }
+  const fromA = function (k, b) { return QA[k * A + b]; };
+  const fromB = function (k, b) { return QB[k * A + b]; };
+
+  function epsilon() { return Math.max(0, 1 - t / (EXPLORE_SHARE * cfg.steps)); }
+  function choose(k) { return rnd() < epsilon() ? Math.floor(rnd() * A) : argmax(value, k); }
+  function maxRow(k) {
+    let m = -Infinity;
+    for (let b = 0; b < A; b++) m = Math.max(m, QA[k * A + b]);
+    return m;
+  }
+  function mark(k) { if (!seen[k]) { seen[k] = 1; seenCount++; } }
+
+  function clearTraces() {
+    for (const i of active) E[i] = 0;
+    active = [];
+  }
+
+  function begin() {
+    s = env.reset();
+    mark(s);
+    epLen = 0;
+    episodes++;
+    if (usesTraces) clearTraces();
+    buffer = [];
+    a = cfg.method === 'mc' ? Math.floor(rnd() * A) : choose(s);
+  }
+
+  function traceUpdate(delta, keep) {
+    const decay = cfg.gamma * cfg.lambda;
+    const next = [];
+    for (const i of active) {
+      QA[i] += cfg.alpha * delta * E[i];
+      if (keep) {
+        E[i] *= decay;
+        if (E[i] > 1e-6) next.push(i); else E[i] = 0;
+      } else {
+        E[i] = 0;
+      }
+    }
+    active = next;
+  }
+
+  function finishMonteCarlo() {
+    const first = new Map();
+    buffer.forEach(function (step, i) { if (!first.has(step.idx)) first.set(step.idx, i); });
+    let G = 0;
+    for (let i = buffer.length - 1; i >= 0; i--) {
+      G = buffer[i].r + cfg.gamma * G;
+      if (first.get(buffer[i].idx) === i) QA[buffer[i].idx] += cfg.alpha * (G - QA[buffer[i].idx]);
+    }
+  }
+
+  function stepOnce() {
+    const out = env.step(a);
+    const s2 = out.s, r = out.r, end = out.done;
+    const idx = s * A + a;
+    let a2 = 0;
+    if (!end) mark(s2);
+    switch (cfg.method) {
+      case 'q':
+        QA[idx] += cfg.alpha * (r + (end ? 0 : cfg.gamma * maxRow(s2)) - QA[idx]);
+        if (!end) a2 = choose(s2);
+        break;
+      case 'sarsa':
+        if (!end) a2 = choose(s2);
+        QA[idx] += cfg.alpha * (r + (end ? 0 : cfg.gamma * QA[s2 * A + a2]) - QA[idx]);
+        break;
+      case 'expected': {
+        let expect = 0;
+        if (!end) {
+          const eps = epsilon();
+          let sum = 0;
+          for (let b = 0; b < A; b++) sum += QA[s2 * A + b];
+          expect = (1 - eps) * maxRow(s2) + (eps / A) * sum;
+          a2 = choose(s2);
+        }
+        QA[idx] += cfg.alpha * (r + cfg.gamma * expect - QA[idx]);
+        break;
+      }
+      case 'double':
+        if (rnd() < 0.5) {
+          const target = end ? 0 : QB[s2 * A + argmax(fromA, s2)];
+          QA[idx] += cfg.alpha * (r + cfg.gamma * target - QA[idx]);
+        } else {
+          const target = end ? 0 : QA[s2 * A + argmax(fromB, s2)];
+          QB[idx] += cfg.alpha * (r + cfg.gamma * target - QB[idx]);
+        }
+        if (!end) a2 = choose(s2);
+        break;
+      case 'sarsa-lambda': {
+        if (!end) a2 = choose(s2);
+        const delta = r + (end ? 0 : cfg.gamma * QA[s2 * A + a2]) - QA[idx];
+        if (E[idx] === 0) active.push(idx);
+        E[idx] += 1;
+        traceUpdate(delta, !end);
+        break;
+      }
+      case 'q-lambda': {
+        let star = 0;
+        if (!end) {
+          a2 = choose(s2);
+          star = QA[s2 * A + a2] >= maxRow(s2) ? a2 : argmax(fromA, s2);
+        }
+        const delta = r + (end ? 0 : cfg.gamma * QA[s2 * A + star]) - QA[idx];
+        if (E[idx] === 0) active.push(idx);
+        E[idx] += 1;
+        traceUpdate(delta, !end && a2 === star);
+        break;
+      }
+      case 'mc':
+        buffer.push({ idx: idx, r: r });
+        if (!end) a2 = choose(s2);
+        break;
+      default:
+        throw new Error('unknown method ' + cfg.method);
+    }
+    t++;
+    epLen++;
+    if (end || epLen >= env.cap) {
+      if (cfg.method === 'mc') finishMonteCarlo();
+      begin();
+    } else {
+      s = s2;
+      a = a2;
+    }
+  }
+
+  begin();
+  return {
+    run: function (count) {
+      const stop = Math.min(cfg.steps, t + count);
+      while (t < stop) stepOnce();
+      return t >= cfg.steps;
+    },
+    value: value,
+    epsilon: epsilon,
+    progress: function () { return t / cfg.steps; },
+    episodes: function () { return episodes; },
+    visited: function () { return seenCount; }
+  };
+}
+
+// Flappy model: physics, seeded course and state encoder. Shared by the page and the Node tests.
+// World units: the sky is H tall; birds fly right at SPEED per tick; pipes sit at fixed world x.
+const FLAP = {
+  H: 100,          // height of the sky (ceiling 0, ground H)
+  R: 2.2,          // bird collision radius
+  GRAV: 0.5,       // added to vy every tick
+  KICK: -4,        // vy right after a flap
+  VMAX: 6,         // terminal fall speed
+  SPEED: 2,        // world units flown per tick
+  PIPE_W: 9,       // pipe width
+  FIRST: 96,       // world x of the first pipe
+  START_X: 30      // world x where every bird starts
+};
+const COURSES = {
+  wide: { name: 'Wide gaps', gap: 34, spacing: 64, shift: 26, steps: 300000 },
+  classic: { name: 'Classic', gap: 28, spacing: 60, shift: 30, steps: 400000 },
+  narrow: { name: 'Narrow gaps', gap: 24, spacing: 56, shift: 32, steps: 800000 }
+};
+const FLAP_ACTIONS = ['glide', 'flap'];
+
+// Bins of the tabular state: horizontal distance to the next pipe, gap centre minus bird y, vertical speed.
+const DX_EDGES = [7, 15, 25, 37];
+const DY_EDGES = [-26, -16, -10, -6, -3, 0, 3, 6, 10, 16, 26];
+const VY_EDGES = [-2, 0, 2, 4];
+const FLAP_STATES = (DX_EDGES.length + 1) * (DY_EDGES.length + 1) * (VY_EDGES.length + 1);
+
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s = (s + 0x6D2B79F5) >>> 0;
+    let z = s;
+    z = Math.imul(z ^ (z >>> 15), z | 1);
+    z ^= z + Math.imul(z ^ (z >>> 7), z | 61);
+    return ((z ^ (z >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function binOf(v, edges) {
+  let i = 0;
+  while (i < edges.length && v >= edges[i]) i++;
+  return i;
+}
+
+function makeCourse(spec, seed) {
+  const rng = mulberry32(seed);
+  const lo = spec.gap / 2 + 8, hi = FLAP.H - spec.gap / 2 - 8;
+  const gaps = [];
+  return {
+    spec: spec,
+    seed: seed,
+    pipe: function (i) {
+      while (gaps.length <= i) {
+        const prev = gaps.length ? gaps[gaps.length - 1] : lo + rng() * (hi - lo);
+        gaps.push(gaps.length ? Math.min(hi, Math.max(lo, prev + (rng() * 2 - 1) * spec.shift)) : prev);
+      }
+      return { x: FLAP.FIRST + i * spec.spacing, gap: gaps[i] };
+    }
+  };
+}
+
+function makeBird() {
+  return { x: FLAP.START_X, y: FLAP.H * 0.45, vy: 0, next: 0, pipes: 0, alive: true };
+}
+
+// Circle against the two pipe rectangles of pipe p.
+function hitsPipe(bird, p, gap) {
+  const half = FLAP.PIPE_W / 2;
+  const cx = Math.max(p.x - half, Math.min(bird.x, p.x + half));
+  const top = p.gap - gap / 2, bottom = p.gap + gap / 2;
+  const dxs = (bird.x - cx) * (bird.x - cx);
+  if (bird.y < top + FLAP.R) {
+    const cy = Math.min(bird.y, top);
+    if (dxs + (bird.y - cy) * (bird.y - cy) < FLAP.R * FLAP.R) return true;
+  }
+  if (bird.y > bottom - FLAP.R) {
+    const cy = Math.max(bird.y, bottom);
+    if (dxs + (bird.y - cy) * (bird.y - cy) < FLAP.R * FLAP.R) return true;
+  }
+  return false;
+}
+
+// One tick for one bird. Returns 'crash', 'pipe' or ''.
+function flyStep(bird, action, course) {
+  if (action === 1) bird.vy = FLAP.KICK;
+  bird.vy = Math.min(bird.vy + FLAP.GRAV, FLAP.VMAX);
+  bird.y += bird.vy;
+  bird.x += FLAP.SPEED;
+  let event = '';
+  const p = course.pipe(bird.next);
+  if (bird.x - FLAP.R > p.x + FLAP.PIPE_W / 2) { bird.next++; bird.pipes++; event = 'pipe'; }
+  if (bird.y - FLAP.R <= 0 || bird.y + FLAP.R >= FLAP.H || hitsPipe(bird, course.pipe(bird.next), course.spec.gap)) {
+    bird.alive = false;
+    bird.y = Math.min(Math.max(bird.y, FLAP.R), FLAP.H - FLAP.R);
+    event = 'crash';
+  }
+  return event;
+}
+
+function flapFeatures(bird, course) {
+  const p = course.pipe(bird.next);
+  return { dx: p.x - bird.x, dy: p.gap - bird.y, vy: bird.vy };
+}
+
+function flapEncode(dx, dy, vy) {
+  return (binOf(dx, DX_EDGES) * (DY_EDGES.length + 1) + binOf(dy, DY_EDGES)) * (VY_EDGES.length + 1) + binOf(vy, VY_EDGES);
+}
+
+function flapState(bird, course) {
+  const f = flapFeatures(bird, course);
+  return flapEncode(f.dx, f.dy, f.vy);
+}
+
+// Training environment: one bird, a fresh random course every episode.
+// rewards: { alive, pipe, crash }
+function makeFlappyEnv(spec, rewards, rng, cap) {
+  let course = null, bird = null;
+  return {
+    nStates: FLAP_STATES,
+    nActions: 2,
+    cap: cap,
+    reset: function () {
+      course = makeCourse(spec, Math.floor(rng() * 4294967296));
+      bird = makeBird();
+      return flapState(bird, course);
+    },
+    step: function (a) {
+      const ev = flyStep(bird, a, course);
+      const r = ev === 'crash' ? rewards.crash : rewards.alive + (ev === 'pipe' ? rewards.pipe : 0);
+      return { s: flapState(bird, course), r: r, done: ev === 'crash' };
+    }
+  };
+}
+
+// Greedy test flights on fixed seeds. policy(k) -> action. Returns mean pipes and how many reached capPipes.
+function flapEvaluate(policy, spec, seeds, capPipes) {
+  let total = 0, finished = 0;
+  for (const seed of seeds) {
+    const course = makeCourse(spec, seed);
+    const bird = makeBird();
+    while (bird.alive && bird.pipes < capPipes) flyStep(bird, policy(flapState(bird, course)), course);
+    total += bird.pipes;
+    if (bird.pipes >= capPipes) finished++;
+  }
+  return { mean: total / seeds.length, finished: finished };
+}
+
+// Chalk on canvas. Shapes are drawn once into sprites, eroded with a fixed grain so they read
+// as chalk, then blitted every frame. Moving things keep their grain because it is baked in.
+function createChalk(dpr) {
+  const GRAIN = (function () {
+    const n = 160, m = 10;
+    const c = document.createElement('canvas');
+    c.width = c.height = n;
+    const g = c.getContext('2d');
+    const img = g.createImageData(n, n);
+    const rng = mulberry32(99);
+    const coarse = [];
+    for (let i = 0; i < m * m; i++) coarse.push(rng());
+    const at = function (x, y) { return coarse[(y % m) * m + (x % m)]; };
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        const fx = x / n * m, fy = y / n * m;
+        const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+        const cv = (at(x0, y0) * (1 - tx) + at(x0 + 1, y0) * tx) * (1 - ty) + (at(x0, y0 + 1) * (1 - tx) + at(x0 + 1, y0 + 1) * tx) * ty;
+        const v = 0.62 * rng() + 0.38 * cv;
+        img.data[(y * n + x) * 4 + 3] = Math.round(255 * Math.max(0, Math.min(1, (v - 0.48) * 2.4)));
+      }
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  })();
+  const texts = new Map();
+
+  function canvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.ceil(w));
+    c.height = Math.max(1, Math.ceil(h));
+    return c;
+  }
+
+  function erode(g, w, h, amount) {
+    const pat = g.createPattern(GRAIN, 'repeat');
+    pat.setTransform(new DOMMatrix().scale(Math.max(1, dpr * 0.85)));
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'destination-out';
+    g.globalAlpha = amount;
+    g.fillStyle = pat;
+    g.fillRect(0, 0, w, h);
+    g.restore();
+  }
+
+  // Sprite of w×h device pixels; draw(g) paints it, then the grain eats into it.
+  function sprite(w, h, draw, amount) {
+    const c = canvas(w, h);
+    const g = c.getContext('2d');
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+    draw(g);
+    erode(g, c.width, c.height, amount === undefined ? 0.9 : amount);
+    return c;
+  }
+
+  // Stroke the current path twice, a hair apart, like a stick of chalk pressed unevenly.
+  function stroke(g, color, width, alpha) {
+    g.save();
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.globalAlpha = alpha;
+    g.stroke();
+    g.translate(width * 0.18, -width * 0.12);
+    g.globalAlpha = alpha * 0.45;
+    g.stroke();
+    g.restore();
+  }
+
+  // Parallel lines inside the current path.
+  function hatch(g, box, color, gap, width, alpha, angle) {
+    g.save();
+    g.clip();
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.globalAlpha = alpha;
+    const cx = box.x + box.w / 2, cy = box.y + box.h / 2, r = Math.hypot(box.w, box.h) / 2 + gap;
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    g.beginPath();
+    for (let d = -r; d <= r; d += gap) {
+      g.moveTo(cx + ca * -r - sa * d, cy + sa * -r + ca * d);
+      g.lineTo(cx + ca * r - sa * d, cy + sa * r + ca * d);
+    }
+    g.stroke();
+    g.restore();
+  }
+
+  // Cached chalk text sprite (px is the font size in device pixels).
+  function text(str, px, color, weight) {
+    const key = str + '|' + px + '|' + color + '|' + weight;
+    let c = texts.get(key);
+    if (c) return c;
+    const font = weight + ' ' + px + 'px "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif';
+    const probe = canvas(1, 1).getContext('2d');
+    probe.font = font;
+    const w = probe.measureText(str).width + px * 0.4;
+    c = sprite(w, px * 1.35, function (g) {
+      g.font = font;
+      g.textBaseline = 'middle';
+      g.fillStyle = color;
+      g.fillText(str, px * 0.2, px * 0.7);
+      g.globalAlpha = 0.4;
+      g.fillText(str, px * 0.2 + px * 0.03, px * 0.68);
+    }, 0.7);
+    if (document.fonts && document.fonts.status === 'loaded') texts.set(key, c);
+    return c;
+  }
+
+  return { sprite: sprite, stroke: stroke, hatch: hatch, text: text };
+}
+
+// Blit a sprite centred on (x, y) device pixels.
+function blit(ctx, img, x, y, alpha) {
+  ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+  ctx.drawImage(img, Math.round(x - img.width / 2), Math.round(y - img.height / 2));
+  ctx.globalAlpha = 1;
+}
+
+(function () {
+  'use strict';
+
+  // ---------- constants ----------
+  const METHODS = [
+    { key: 'q', name: 'Q-learning', info: 'Off-policy TD: each update uses the best next action, whatever the bird actually does next.' },
+    { key: 'sarsa', name: 'SARSA', info: 'On-policy TD: each update uses the action the bird actually takes next, exploration included.' },
+    { key: 'double', name: 'Double Q-learning', info: 'Two Q-tables: one picks the best next action, the other values it, which curbs over-estimation. The bird flies with their average.' },
+    { key: 'expected', name: 'Expected SARSA', info: 'Like SARSA, but uses the average value of the next actions under the ε-greedy policy instead of one sampled action.' },
+    { key: 'sarsa-lambda', name: 'SARSA(λ)', info: 'SARSA with eligibility traces: every reward also updates the recent ticks of the flight, faded by γλ.' },
+    { key: 'q-lambda', name: 'Q(λ)', info: 'Watkins\' Q(λ): Q-learning with eligibility traces, which are cut whenever the bird explores.' },
+    { key: 'mc', name: 'Monte Carlo', info: 'Waits until the flight ends and learns from the full discounted return. Each flight opens with a random action (exploring starts).' }
+  ];
+  const SPEEDS = { slow: { name: 'Slow', hz: 22 }, normal: { name: 'Normal', hz: 30 }, fast: { name: 'Fast', hz: 40 } };
+  const FINISH = 25;                 // pipes to the finish line
+  const EVAL_SEEDS = [101, 202, 303, 404, 505, 606, 707, 808];
+  const EVAL_CAP = 50;               // test flights stop at this many pipes
+  const EPISODE_CAP = 3000;          // ticks per training flight
+  const TRAIN_FRAMES = 120;
+  const GROUND = 14;                 // ground strip under the sky, in world units
+  const VIEW_W = 160, VIEW_H = FLAP.H + GROUND;
+  const SCREEN_X = 36;               // where the birds sit on screen
+  const TRAIL = 42;                  // ticks of chalk trail behind each bird
+  const CAP_H = 4.5;                 // pipe lip height
+  const CLOUD_W = 360, MOUNT_W = 420, HILL_W = 300, HILL_H = 34, TILE_W = 30;
+  const C = {
+    chalk: '#ECEEE4', dim: '#A3B8AE', human: '#8FC6EC', machine: '#F2D06B', pos: '#A9DEB2', neg: '#EF9D93', board: '#1D3A32',
+    humanWing: '#C6E2F6', machineWing: '#F9E7AE'
+  };
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- persistence ----------
+  const STORE = 'flappy-lab-v1';
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; }
+  }
+  function save() {
+    try {
+      localStorage.setItem(STORE, JSON.stringify({
+        score: score, showQ: showQ, eps: raceEps, course: courseKey, speed: speedKey,
+        method: params.method, alpha: params.alpha, gamma: params.gamma, lambda: params.lambda, rewards: params.rewards
+      }));
+    } catch (e) { /* storage unavailable */ }
+  }
+  function num(v, fallback, lo, hi) {
+    return typeof v === 'number' && isFinite(v) && v >= lo && v <= hi ? v : fallback;
+  }
+
+  const saved = load();
+  const score = Object.assign({ human: 0, machine: 0, draw: 0 }, saved.score || {});
+  let showQ = !!saved.showQ;
+  let raceEps = num(saved.eps, 0, 0, 1);
+  let courseKey = COURSES[saved.course] ? saved.course : 'classic';
+  let speedKey = SPEEDS[saved.speed] ? saved.speed : 'normal';
+  const savedRewards = saved.rewards || {};
+  const params = {
+    method: METHODS.some(function (m) { return m.key === saved.method; }) ? saved.method : 'q',
+    alpha: num(saved.alpha, 0.2, 0.01, 1),
+    gamma: num(saved.gamma, 0.95, 0, 0.999),
+    lambda: num(saved.lambda, 0.8, 0, 1),
+    steps: COURSES[courseKey].steps,
+    rewards: {
+      alive: num(savedRewards.alive, 0.1, -1e6, 1e6),
+      pipe: num(savedRewards.pipe, 1, -1e6, 1e6),
+      crash: num(savedRewards.crash, -10, -1e6, 1e6)
+    }
+  };
+
+  // ---------- policy ----------
+  let trainer = null;
+  let SCALE = { vmax: 0, nmax: 0 };
+
+  function q(k, a) { return trainer ? trainer.value(k, a) : 0; }
+  function qRow(k) { return [q(k, 0), q(k, 1)]; }
+  function bestActions(row) {
+    const mx = Math.max(row[0], row[1]);
+    const out = [];
+    for (let a = 0; a < 2; a++) if (row[a] >= mx - 1e-12) out.push(a);
+    return out;
+  }
+  function policy(k) { return bestActions(qRow(k))[0]; }
+  function evaluate() { return flapEvaluate(policy, COURSES[courseKey], EVAL_SEEDS, EVAL_CAP); }
+
+  function buildScale() {
+    let vmax = 0, nmax = 0;
+    for (let k = 0; k < FLAP_STATES; k++) {
+      for (let a = 0; a < 2; a++) {
+        const v = q(k, a);
+        if (v > vmax) vmax = v;
+        if (-v > nmax) nmax = -v;
+      }
+    }
+    return { vmax: vmax, nmax: nmax };
+  }
+  function tintT(v) {
+    if (v > 0) return { sign: 1, t: SCALE.vmax > 0 ? Math.sqrt(Math.min(1, v / SCALE.vmax)) : 1 };
+    if (v < 0) return { sign: -1, t: SCALE.nmax > 0 ? Math.sqrt(Math.min(1, -v / SCALE.nmax)) : 1 };
+    return { sign: 0, t: 0 };
+  }
+  function tintFill(v) {
+    const z = tintT(v);
+    if (z.sign > 0) return 'rgba(169, 222, 178, ' + (0.05 + 0.38 * z.t).toFixed(3) + ')';
+    if (z.sign < 0) return 'rgba(239, 157, 147, ' + (0.06 + 0.36 * z.t).toFixed(3) + ')';
+    return 'rgba(236, 238, 228, 0.04)';
+  }
+  function tintText(v) { return v > 0 ? 'var(--pos)' : v < 0 ? 'var(--neg)' : 'var(--chalk-dim)'; }
+
+  function fmt(v) {
+    const a = Math.abs(v);
+    let s;
+    if (a === 0) s = '0';
+    else if (a >= 10) s = a.toFixed(1);
+    else if (a >= 1) s = a.toFixed(2);
+    else if (a >= 0.001) s = a.toPrecision(3);
+    else s = a.toExponential(1);
+    return (v < 0 ? '−' : '') + s.replace('-', '−');
+  }
+  function methodOf(key) { return METHODS.filter(function (m) { return m.key === key; })[0]; }
+  function count(n) { return n.toLocaleString('en-US'); }
+
+  // ---------- game state ----------
+  let phase = 'training';   // training | ready | race | over
+  let course = null;
+  let human = null, machine = null;
+  let demo = null;          // the learner's practice flight during training
+  let paused = false;
+  let flapQueued = false;
+  let lastMachine = null;
+  let result = null;        // 'human' | 'machine' | 'draw' once a race is over
+  let history = [];
+  let lastEval = null;
+  let pointer = null;       // canvas position of the mouse, in world units of the view
+  let hoverCell = null;
+  let particles = [];
+  let floats = [];
+  let acc = 0;
+  let clock = 0;
+
+  function newBird(who) {
+    const b = makeBird();
+    b.who = who;
+    b.px = b.x; b.py = b.y;
+    b.trail = [];
+    b.wing = 0; b.boost = 0; b.rot = 0;
+    b.drop = null;
+    return b;
+  }
+  function newSeed() { return Math.floor(Math.random() * 4294967296); }
+
+  // ---------- DOM ----------
+  const $ = function (id) { return document.getElementById(id); };
+  const cv = $('cv');
+  const ctx = cv.getContext('2d');
+  const docks = { training: $('dock-train'), ready: $('dock-ready'), race: $('dock-race'), over: $('dock-over') };
+
+  function el(name, attrs, parent) {
+    const node = document.createElementNS(SVGNS, name);
+    for (const key in attrs) node.setAttribute(key, attrs[key]);
+    if (parent) parent.appendChild(node);
+    return node;
+  }
+
+  // ---------- sprites ----------
+  let S = 1, DPR = 1, SPR = null, chalk = null;
+
+  function resize() {
+    DPR = Math.min(2.5, window.devicePixelRatio || 1);
+    const w = Math.max(320, Math.round(cv.clientWidth * DPR));
+    cv.width = w;
+    cv.height = Math.round(w * VIEW_H / VIEW_W);
+    S = w / VIEW_W;
+    buildSprites();
+  }
+
+  function periodic(x, width, waves) {
+    let y = 0;
+    for (const w of waves) y += w[0] * Math.sin(2 * Math.PI * w[1] * x / width + w[2]);
+    return y;
+  }
+
+  function birdSprite(body, wing, frame, dead) {
+    return chalk.sprite(16 * S, 14 * S, function (g) {
+      g.scale(S, S);
+      g.translate(8, 7);
+      const R = 2.8;
+      g.lineWidth = 0.4;
+      g.strokeStyle = C.board;
+      // tail
+      g.beginPath();
+      g.moveTo(-R + 0.4, -0.4); g.lineTo(-R - 2.3, -1.6); g.lineTo(-R - 1.5, 0.2); g.lineTo(-R - 2.5, 1.5); g.lineTo(-R + 0.4, 1.0);
+      g.closePath();
+      g.fillStyle = body; g.fill(); g.stroke();
+      // body
+      g.beginPath(); g.ellipse(0, 0, R * 1.1, R, 0, 0, Math.PI * 2);
+      g.fillStyle = body; g.fill();
+      g.lineWidth = 0.5; g.stroke();
+      // belly
+      g.beginPath(); g.ellipse(0.7, 1.2, R * 0.66, R * 0.48, 0.15, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(255, 255, 255, 0.26)'; g.fill();
+      // beak
+      g.beginPath(); g.moveTo(R * 0.92, -0.35); g.lineTo(R + 2.1, 0.3); g.lineTo(R * 0.92, 1.0); g.closePath();
+      g.fillStyle = C.neg; g.fill(); g.lineWidth = 0.32; g.stroke();
+      // eye
+      if (dead) {
+        g.beginPath();
+        g.moveTo(0.6, -1.8); g.lineTo(2.0, -0.4); g.moveTo(2.0, -1.8); g.lineTo(0.6, -0.4);
+        g.lineWidth = 0.45; g.stroke();
+      } else {
+        g.beginPath(); g.arc(1.3, -1.1, 1.0, 0, Math.PI * 2); g.fillStyle = '#fff'; g.fill();
+        g.lineWidth = 0.25; g.stroke();
+        g.beginPath(); g.arc(1.62, -1.05, 0.5, 0, Math.PI * 2); g.fillStyle = C.board; g.fill();
+      }
+      // wing
+      const ang = [-0.8, -0.05, 0.7][frame], off = [-0.8, 0, 0.55][frame];
+      g.save();
+      g.translate(-0.8, 0.5 + off);
+      g.rotate(ang);
+      g.beginPath(); g.ellipse(-0.4, 0, 2.2, 1.15, 0, 0, Math.PI * 2);
+      g.fillStyle = wing; g.fill();
+      g.lineWidth = 0.36; g.stroke();
+      g.restore();
+    }, 0.42);
+  }
+
+  function buildSprites() {
+    chalk = createChalk(DPR);
+    const rng = mulberry32(17);
+    const unit = function (w, h, draw, amount) {
+      return chalk.sprite(w * S, h * S, function (g) { g.scale(S, S); draw(g); }, amount);
+    };
+    SPR = {};
+
+    SPR.sun = unit(28, 28, function (g) {
+      g.translate(14, 14);
+      g.beginPath(); g.arc(0, 0, 6.2, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(242, 208, 107, 0.1)'; g.fill();
+      chalk.hatch(g, { x: -7, y: -7, w: 14, h: 14 }, C.machine, 1.25, 0.26, 0.38, -0.6);
+      g.beginPath(); g.arc(0, 0, 6.2, 0, Math.PI * 2);
+      chalk.stroke(g, C.machine, 0.55, 0.9);
+      g.beginPath();
+      for (let i = 0; i < 12; i++) {
+        const a = i * Math.PI / 6 + 0.13, r1 = 8.2, r2 = i % 2 ? 10.4 : 12;
+        g.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
+        g.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+      }
+      chalk.stroke(g, C.machine, 0.5, 0.75);
+    });
+
+    SPR.clouds = unit(CLOUD_W, 34, function (g) {
+      [[34, 14, 1.0], [128, 23, 0.75], [214, 12, 1.2], [306, 21, 0.9]].forEach(function (cl) {
+        const cx = cl[0], cy = cl[1], k = cl[2];
+        const puffs = [[-7, 1.5, 4.4], [-1, -2.2, 6.4], [6.5, 0, 5], [1.8, 2.6, 4.6], [-4, 3, 3.6]];
+        const trace = function (shrink) {
+          g.beginPath();
+          puffs.forEach(function (p) {
+            const r = p[2] * k - shrink;
+            g.moveTo(cx + p[0] * k + r, cy + p[1] * k);
+            g.arc(cx + p[0] * k, cy + p[1] * k, r, 0, Math.PI * 2);
+          });
+        };
+        trace(0);
+        chalk.stroke(g, C.chalk, 0.5, 0.62);
+        g.save();
+        g.globalCompositeOperation = 'destination-out';
+        g.fillStyle = '#000';
+        trace(0.32);
+        g.fill();
+        g.restore();
+        trace(0);
+        g.fillStyle = 'rgba(236, 238, 228, 0.06)';
+        g.fill();
+      });
+    });
+
+    const ridge = function (x) { return 17 + periodic(x, MOUNT_W, [[7, 2, 0.5], [4, 5, 1.3], [2.2, 11, 2.1]]); };
+    SPR.mountains = unit(MOUNT_W, 40, function (g) {
+      g.beginPath();
+      g.moveTo(0, 40);
+      for (let x = 0; x <= MOUNT_W; x += 1.5) g.lineTo(x, ridge(x));
+      g.lineTo(MOUNT_W, 40);
+      g.closePath();
+      g.fillStyle = 'rgba(236, 238, 228, 0.03)'; g.fill();
+      chalk.hatch(g, { x: 0, y: 0, w: MOUNT_W, h: 40 }, C.dim, 1.7, 0.24, 0.13, 0.9);
+      g.beginPath();
+      for (let x = 0; x <= MOUNT_W; x += 1.5) g[x ? 'lineTo' : 'moveTo'](x, ridge(x));
+      chalk.stroke(g, C.chalk, 0.45, 0.34);
+      // snow on the peaks
+      g.beginPath();
+      for (let x = 3; x < MOUNT_W - 3; x += 1.5) {
+        if (ridge(x) < ridge(x - 1.5) && ridge(x) <= ridge(x + 1.5) && ridge(x) < 13) {
+          g.moveTo(x - 3, ridge(x - 3) + 0.4); g.lineTo(x - 1.2, ridge(x) + 2.4); g.lineTo(x, ridge(x) + 1.2);
+          g.lineTo(x + 1.3, ridge(x) + 2.6); g.lineTo(x + 3, ridge(x + 3) + 0.4);
+        }
+      }
+      chalk.stroke(g, C.chalk, 0.4, 0.42);
+    });
+
+    const hill = function (x) { return HILL_H - 14 + periodic(x, HILL_W, [[4, 3, 0.2], [2.5, 7, 1.7]]); };
+    SPR.hills = unit(HILL_W, HILL_H, function (g) {
+      g.beginPath();
+      g.moveTo(0, HILL_H);
+      for (let x = 0; x <= HILL_W; x += 1.5) g.lineTo(x, hill(x));
+      g.lineTo(HILL_W, HILL_H);
+      g.closePath();
+      g.fillStyle = 'rgba(169, 222, 178, 0.05)'; g.fill();
+      chalk.hatch(g, { x: 0, y: 0, w: HILL_W, h: HILL_H }, C.pos, 1.35, 0.24, 0.17, -0.8);
+      g.beginPath();
+      for (let x = 0; x <= HILL_W; x += 1.5) g[x ? 'lineTo' : 'moveTo'](x, hill(x));
+      chalk.stroke(g, C.pos, 0.5, 0.6);
+      for (let i = 0; i < 10; i++) {
+        const tx = (i + 0.3 + rng() * 0.4) * HILL_W / 10, ty = hill(tx) + 0.6, h = 1 + rng() * 0.35;
+        g.beginPath(); g.moveTo(tx, ty); g.lineTo(tx, ty - 4.2 * h);
+        chalk.stroke(g, C.dim, 0.45, 0.7);
+        if (i % 3 === 1) {
+          g.beginPath(); g.moveTo(tx - 2.5 * h, ty - 2.2 * h); g.lineTo(tx, ty - 9.5 * h); g.lineTo(tx + 2.5 * h, ty - 2.2 * h); g.closePath();
+        } else {
+          g.beginPath(); g.arc(tx, ty - 6.2 * h, 2.7 * h, 0, Math.PI * 2);
+        }
+        g.fillStyle = 'rgba(169, 222, 178, 0.12)'; g.fill();
+        chalk.hatch(g, { x: tx - 4, y: ty - 11 * h, w: 8, h: 10 * h }, C.pos, 0.9, 0.22, 0.42, 0.7);
+        if (i % 3 === 1) {
+          g.beginPath(); g.moveTo(tx - 2.5 * h, ty - 2.2 * h); g.lineTo(tx, ty - 9.5 * h); g.lineTo(tx + 2.5 * h, ty - 2.2 * h); g.closePath();
+        } else {
+          g.beginPath(); g.arc(tx, ty - 6.2 * h, 2.7 * h, 0, Math.PI * 2);
+        }
+        chalk.stroke(g, C.pos, 0.45, 0.85);
+      }
+    });
+
+    SPR.ground = unit(TILE_W, GROUND + 2, function (g) {
+      g.beginPath(); g.rect(0, 2.6, TILE_W, GROUND);
+      chalk.hatch(g, { x: 0, y: 2.6, w: TILE_W, h: GROUND }, C.dim, TILE_W / (15 * Math.SQRT2), 0.24, 0.2, Math.PI / 4);
+      g.beginPath(); g.moveTo(0, 2); g.lineTo(TILE_W, 2);
+      chalk.stroke(g, C.chalk, 0.6, 0.9);
+      g.beginPath();
+      for (let x = 1; x < TILE_W; x += 4) { g.moveTo(x, 5.2); g.lineTo(x + 2, 5.2); }
+      chalk.stroke(g, C.chalk, 0.32, 0.35);
+      g.beginPath();
+      [3, 9.5, 16, 22.5, 27].forEach(function (x, i) {
+        const h = i % 2 ? 1.5 : 2.1;
+        g.moveTo(x - 1.1, 2); g.lineTo(x - 0.7, 2 - h);
+        g.moveTo(x, 2); g.lineTo(x + 0.1, 2 - h * 1.25);
+        g.moveTo(x + 1.1, 2); g.lineTo(x + 0.9, 2 - h);
+      });
+      chalk.stroke(g, C.pos, 0.35, 0.8);
+      g.beginPath();
+      [[6, 8.5, 0.7], [19, 11.2, 0.55], [25.5, 7, 0.45]].forEach(function (p) { g.moveTo(p[0] + p[2], p[1]); g.arc(p[0], p[1], p[2], 0, Math.PI * 2); });
+      chalk.stroke(g, C.dim, 0.28, 0.4);
+    });
+
+    SPR.pipe = unit(FLAP.PIPE_W, FLAP.H, function (g) {
+      const w = FLAP.PIPE_W;
+      g.beginPath(); g.rect(0.4, 0, w - 0.8, FLAP.H);
+      g.fillStyle = 'rgba(169, 222, 178, 0.08)'; g.fill();
+      chalk.hatch(g, { x: 0, y: 0, w: w, h: FLAP.H }, C.pos, 1.25, 0.28, 0.42, Math.PI / 4);
+      g.beginPath(); g.moveTo(0.45, 0); g.lineTo(0.45, FLAP.H); g.moveTo(w - 0.45, 0); g.lineTo(w - 0.45, FLAP.H);
+      chalk.stroke(g, C.pos, 0.55, 0.92);
+      g.beginPath(); g.moveTo(2.1, 0); g.lineTo(2.1, FLAP.H);
+      chalk.stroke(g, C.chalk, 0.5, 0.22);
+    });
+
+    SPR.cap = unit(FLAP.PIPE_W + 3, CAP_H, function (g) {
+      const w = FLAP.PIPE_W + 3;
+      g.beginPath(); g.roundRect(0.35, 0.35, w - 0.7, CAP_H - 0.7, 1.1);
+      g.fillStyle = 'rgba(169, 222, 178, 0.16)'; g.fill();
+      chalk.hatch(g, { x: 0, y: 0, w: w, h: CAP_H }, C.pos, 0.85, 0.26, 0.55, -Math.PI / 4);
+      g.beginPath(); g.roundRect(0.35, 0.35, w - 0.7, CAP_H - 0.7, 1.1);
+      chalk.stroke(g, C.pos, 0.55, 0.95);
+      g.beginPath(); g.moveTo(2, 1.2); g.lineTo(2, CAP_H - 1.2);
+      chalk.stroke(g, C.chalk, 0.45, 0.3);
+    });
+
+    SPR.flag = unit(9, 7, function (g) {
+      g.beginPath(); g.rect(0.6, 0.6, 7.6, 5);
+      chalk.stroke(g, C.chalk, 0.4, 0.9);
+      for (let r = 0; r < 2; r++) {
+        for (let c = 0; c < 4; c++) {
+          if ((r + c) % 2) continue;
+          g.beginPath(); g.rect(0.6 + c * 1.9, 0.6 + r * 2.5, 1.9, 2.5);
+          g.fillStyle = 'rgba(236, 238, 228, 0.75)'; g.fill();
+        }
+      }
+    }, 0.6);
+
+    SPR.bird = {};
+    [['human', C.human, C.humanWing], ['machine', C.machine, C.machineWing]].forEach(function (b) {
+      SPR.bird[b[0]] = {
+        frames: [0, 1, 2].map(function (f) { return birdSprite(b[1], b[2], f, false); }),
+        dead: birdSprite(b[1], b[2], 1, true)
+      };
+    });
+  }
+
+  // ---------- drawing ----------
+  function X(wx, cam) { return (wx - cam) * S; }
+
+  function drawStrip(img, parallax, cam, top) {
+    const w = img.width;
+    let x = -(((cam * parallax * S) % w) + w) % w;
+    for (; x < cv.width; x += w) ctx.drawImage(img, Math.round(x), Math.round(top * S));
+  }
+
+  function drawPipes(c, cam, last) {
+    const sp = c.spec.spacing, w = FLAP.PIPE_W;
+    const i0 = Math.max(0, Math.floor((cam - FLAP.FIRST - w) / sp));
+    const i1 = Math.min(last, Math.ceil((cam + VIEW_W - FLAP.FIRST + w) / sp));
+    for (let i = i0; i <= i1; i++) {
+      const p = c.pipe(i);
+      const top = p.gap - c.spec.gap / 2, bottom = p.gap + c.spec.gap / 2;
+      const x = Math.round(X(p.x - w / 2, cam));
+      const bodyTop = Math.max(0, (top - CAP_H) * S);
+      if (bodyTop > 0) ctx.drawImage(SPR.pipe, 0, 0, SPR.pipe.width, bodyTop, x, 0, SPR.pipe.width, bodyTop);
+      const bodyH = (FLAP.H - bottom - CAP_H) * S;
+      if (bodyH > 0) ctx.drawImage(SPR.pipe, 0, 0, SPR.pipe.width, bodyH, x, Math.round((bottom + CAP_H) * S), SPR.pipe.width, bodyH);
+      const cx = Math.round(X(p.x - w / 2 - 1.5, cam));
+      ctx.drawImage(SPR.cap, cx, Math.round((top - CAP_H) * S));
+      ctx.drawImage(SPR.cap, cx, Math.round(bottom * S));
+    }
+    return { i0: i0, i1: i1 };
+  }
+
+  function drawPipeNumbers(c, cam, span) {
+    for (let i = span.i0; i <= span.i1; i++) {
+      const img = chalk.text(String(i + 1), Math.round(3.6 * S), C.chalk, 680);
+      blit(ctx, img, X(c.pipe(i).x, cam), (FLAP.H + 8.6) * S, 0.7);
+    }
+  }
+
+  function drawFinish(c, cam) {
+    const x = X(c.pipe(FINISH - 1).x + FLAP.PIPE_W / 2 + FLAP.R + 1, cam);
+    if (x < -10 * S || x > cv.width + 10 * S) return;
+    ctx.save();
+    ctx.strokeStyle = C.chalk;
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 0.5 * S;
+    ctx.setLineDash([1.6 * S, 1.6 * S]);
+    ctx.beginPath(); ctx.moveTo(x, 9 * S); ctx.lineTo(x, FLAP.H * S); ctx.stroke();
+    ctx.restore();
+    ctx.drawImage(SPR.flag, Math.round(x - 0.6 * S), Math.round(1.6 * S));
+    blit(ctx, chalk.text('finish', Math.round(3.2 * S), C.chalk, 650), x + 2 * S, 10.6 * S, 0.8);
+  }
+
+  // Cells of the tabular state in front of b's next pipe, at b's current speed.
+  function overlayCells(b, c) {
+    const p = c.pipe(b.next);
+    const half = FLAP.PIPE_W / 2 + FLAP.R;
+    const left = b.next === 0 ? FLAP.START_X - 6 : p.x - c.spec.spacing + half;
+    const xs = [p.x + half].concat(DX_EDGES.map(function (e) { return p.x - e; }), [left]);
+    const ys = [FLAP.H].concat(DY_EDGES.map(function (e) { return p.gap - e; }), [0]);
+    const cells = [];
+    for (let i = 0; i + 1 < xs.length; i++) {
+      for (let j = 0; j + 1 < ys.length; j++) {
+        const x0 = xs[i + 1], x1 = xs[i];
+        const y0 = Math.max(0, ys[j + 1]), y1 = Math.min(FLAP.H, ys[j]);
+        if (y1 - y0 < 0.01 || x1 - x0 < 0.01) continue;
+        const f = { dx: p.x - (x0 + x1) / 2, dy: p.gap - (ys[j] + ys[j + 1]) / 2, vy: b.vy };
+        cells.push({ x0: x0, x1: x1, y0: y0, y1: y1, f: f, k: flapEncode(f.dx, f.dy, f.vy) });
+      }
+    }
+    return cells;
+  }
+
+  function drawOverlay(b, c, cam) {
+    const cells = overlayCells(b, c);
+    const here = flapState(b, c);
+    ctx.save();
+    ctx.lineWidth = Math.max(1, 0.18 * S);
+    cells.forEach(function (cell) {
+      const x0 = X(cell.x0, cam), x1 = X(cell.x1, cam), y0 = cell.y0 * S, y1 = cell.y1 * S, ym = (y0 + y1) / 2;
+      if (x1 < 0 || x0 > cv.width) return;
+      const row = qRow(cell.k);
+      ctx.fillStyle = tintFill(row[1]); ctx.fillRect(x0, y0, x1 - x0, ym - y0);
+      ctx.fillStyle = tintFill(row[0]); ctx.fillRect(x0, ym, x1 - x0, y1 - ym);
+      ctx.strokeStyle = 'rgba(29, 58, 50, 0.9)';
+      ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+      const a = policy(cell.k);
+      const cx = (x0 + x1) / 2, cy = ym, r = Math.min(1.4 * S, (y1 - y0) * 0.32, (x1 - x0) * 0.25);
+      ctx.strokeStyle = C.chalk;
+      ctx.globalAlpha = 0.9;
+      ctx.lineWidth = Math.max(1.2, 0.34 * S);
+      ctx.beginPath();
+      if (a === 1) { ctx.moveTo(cx - r, cy + r * 0.5); ctx.lineTo(cx, cy - r * 0.5); ctx.lineTo(cx + r, cy + r * 0.5); }
+      else { ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); }
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = Math.max(1, 0.18 * S);
+      if (cell.k === here || (hoverCell && hoverCell.k === cell.k)) {
+        ctx.save();
+        ctx.strokeStyle = cell.k === here ? C.machine : C.chalk;
+        ctx.lineWidth = Math.max(1.5, 0.35 * S);
+        ctx.setLineDash([0.9 * S, 0.7 * S]);
+        ctx.strokeRect(x0 + 1, y0 + 1, x1 - x0 - 2, y1 - y0 - 2);
+        ctx.restore();
+      }
+    });
+    ctx.restore();
+    return cells;
+  }
+
+  function drawTrail(b, cam, color, dash) {
+    if (b.trail.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 0.75 * S;
+    ctx.lineCap = 'round';
+    ctx.setLineDash(dash.map(function (d) { return d * S; }));
+    ctx.beginPath();
+    b.trail.forEach(function (p, i) { ctx[i ? 'lineTo' : 'moveTo'](X(p.x - 3, cam), p.y * S); });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function birdPose(b, alpha) {
+    if (b.drop) return { x: b.x, y: b.drop.y, rot: b.drop.rot };
+    const hover = phase === 'ready' ? Math.sin(clock * 3.2) * 1.3 : 0;
+    return { x: b.px + (b.x - b.px) * alpha, y: b.py + (b.y - b.py) * alpha + hover, rot: b.rot };
+  }
+
+  function drawBird(b, pose, cam, shift) {
+    const set = SPR.bird[b.who];
+    const img = b.drop ? set.dead : set.frames[[0, 1, 2, 1][Math.floor(b.wing) % 4]];
+    ctx.save();
+    ctx.translate(X(pose.x + shift, cam), pose.y * S);
+    ctx.rotate(pose.rot);
+    ctx.drawImage(img, -img.width / 2, -img.height / 2);
+    ctx.restore();
+  }
+
+  function drawEffects(cam) {
+    particles.forEach(function (p) {
+      ctx.globalAlpha = Math.max(0, p.life / p.max) * 0.85;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(X(p.x, cam), p.y * S, p.r * S, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    floats.forEach(function (f) {
+      blit(ctx, chalk.text(f.text, Math.round(3.6 * S), f.color, 700), X(f.x, cam), f.y * S, Math.min(1, f.life / 0.4));
+    });
+  }
+
+  function camOf(b, alpha) { return b.px + (b.x - b.px) * alpha - SCREEN_X; }
+
+  function draw(alpha) {
+    if (!SPR) return;
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    const scene = phase === 'training' ? demo : { course: course, bird: machine };
+    if (!scene || !scene.course) return;
+    const c = scene.course;
+    const cam = camOf(scene.bird, alpha);
+
+    blit(ctx, SPR.sun, (VIEW_W - 24) * S, 17 * S);
+    drawStrip(SPR.clouds, 0.12, cam, 4);
+    drawStrip(SPR.mountains, 0.25, cam, FLAP.H - 40);
+    drawStrip(SPR.hills, 0.5, cam, FLAP.H - HILL_H);
+
+    hoverCell = null;
+    if (overlayVisible()) {
+      SCALE = buildScale();
+      const cells = drawOverlay(scene.bird, c, cam);
+      if (pointer) {
+        const wx = cam + pointer.x, wy = pointer.y;
+        hoverCell = cells.filter(function (cl) { return wx >= cl.x0 && wx < cl.x1 && wy >= cl.y0 && wy < cl.y1; })[0] || null;
+      }
+    }
+
+    const last = phase === 'training' ? Infinity : FINISH - 1;
+    const span = drawPipes(c, cam, last);
+    if (phase !== 'training') drawFinish(c, cam);
+    drawStrip(SPR.ground, 1, cam, FLAP.H - 2);
+    drawPipeNumbers(c, cam, span);
+
+    if (phase === 'training') {
+      drawTrail(demo.bird, cam, C.machine, [1.6, 1.2]);
+      drawBird(demo.bird, birdPose(demo.bird, alpha), cam, 0);
+    } else {
+      drawTrail(machine, cam, C.machine, [1.6, 1.2]);
+      drawTrail(human, cam, C.human, [0.1, 1.7]);
+      const ph = birdPose(human, alpha), pm = birdPose(machine, alpha);
+      const close = Math.abs(ph.y - pm.y) < 5 && !human.drop && !machine.drop;
+      drawBird(machine, pm, cam, close ? 1.4 : 0);
+      drawBird(human, ph, cam, close ? -1.4 : 0);
+      if (phase === 'ready') {
+        blit(ctx, chalk.text('you', Math.round(3.4 * S), C.human, 680), X(ph.x - 4.5, cam), (ph.y + 7) * S);
+        blit(ctx, chalk.text('machine', Math.round(3.4 * S), C.machine, 680), X(pm.x + 6, cam), (pm.y - 7) * S);
+      }
+    }
+    drawEffects(cam);
+    drawHud(scene);
+  }
+
+  // Soft patch of board colour behind text so it stays legible over pipes.
+  function halo(x, y, rx, ry) {
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, rx);
+    gr.addColorStop(0, 'rgba(29, 58, 50, 0.82)');
+    gr.addColorStop(0.6, 'rgba(29, 58, 50, 0.55)');
+    gr.addColorStop(1, 'rgba(29, 58, 50, 0)');
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, ry / rx);
+    ctx.translate(-x, -y);
+    ctx.fillStyle = gr;
+    ctx.beginPath(); ctx.arc(x, y, rx, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawHud(scene) {
+    const mid = VIEW_W / 2 * S;
+    if (phase === 'training') {
+      blit(ctx, chalk.text('practice flight · ' + scene.bird.pipes + (scene.bird.pipes === 1 ? ' pipe' : ' pipes'), Math.round(3.6 * S), C.chalk, 620), mid, 6 * S, 0.85);
+      return;
+    }
+    if (phase === 'ready') {
+      halo(mid, 37 * S, 34 * S, 11 * S);
+      blit(ctx, chalk.text('Flap to take off', Math.round(7 * S), C.chalk, 740), mid, 34 * S);
+      blit(ctx, chalk.text('space · ↑ · click · tap', Math.round(3.6 * S), C.dim, 600), mid, 42 * S);
+      return;
+    }
+    const lead = Math.max(human.pipes, machine.pipes);
+    halo(mid, 12.5 * S, 12 * S, 9 * S);
+    blit(ctx, chalk.text(String(lead), Math.round(10 * S), C.chalk, 760), mid, 10 * S, 0.9);
+    blit(ctx, chalk.text('of ' + FINISH, Math.round(3.2 * S), C.dim, 600), mid, 17.5 * S, 0.9);
+    if (phase === 'race' && paused) {
+      halo(mid, 40 * S, 22 * S, 9 * S);
+      blit(ctx, chalk.text('Paused', Math.round(7 * S), C.chalk, 740), mid, 40 * S);
+    }
+    if (phase === 'over') {
+      const title = result === 'draw' ? 'Draw' : result === 'human' ? 'You win' : 'The machine wins';
+      const color = result === 'draw' ? C.chalk : result === 'human' ? C.human : C.machine;
+      halo(mid, 38 * S, 42 * S, 11 * S);
+      blit(ctx, chalk.text(title, Math.round(8 * S), color, 760), mid, 38 * S);
+    }
+  }
+
+  // ---------- effects ----------
+  function puff(b) {
+    if (reduceMotion) return;
+    for (let i = 0; i < 3; i++) {
+      particles.push({ x: b.x - 3, y: b.y + 1.5, vx: -6 - Math.random() * 6, vy: 4 + Math.random() * 6, r: 0.35 + Math.random() * 0.3, life: 0.35, max: 0.35, color: C.chalk });
+    }
+  }
+  function burst(b) {
+    if (reduceMotion) return;
+    const color = b.who === 'human' ? C.human : C.machine;
+    for (let i = 0; i < 16; i++) {
+      const a = Math.random() * Math.PI * 2, v = 6 + Math.random() * 16;
+      particles.push({ x: b.x, y: b.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: 0.3 + Math.random() * 0.5, life: 0.7, max: 0.7, color: i % 3 ? C.chalk : color });
+    }
+  }
+  function floatText(b, text) {
+    floats.push({ x: b.x + (b.who === 'human' ? -3 : 3), y: b.y - 5, text: text, color: b.who === 'human' ? C.human : C.machine, life: 0.8 });
+  }
+
+  function updateEffects(dt) {
+    particles.forEach(function (p) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 30 * dt; p.life -= dt; });
+    particles = particles.filter(function (p) { return p.life > 0; });
+    floats.forEach(function (f) { f.y -= 7 * dt; f.life -= dt; });
+    floats = floats.filter(function (f) { return f.life > 0; });
+    [human, machine, demo && demo.bird].forEach(function (b) {
+      if (!b) return;
+      if (b.drop) {
+        b.drop.vy = Math.min(b.drop.vy + 160 * dt, 90);
+        b.drop.y = Math.min(FLAP.H - 2.4, b.drop.y + b.drop.vy * dt);
+        b.drop.rot = Math.min(Math.PI / 2, b.drop.rot + 6 * dt);
+        return;
+      }
+      const flying = phase === 'ready' || (phase === 'race' && !paused) || phase === 'training';
+      if (flying) b.wing += dt * (b.boost > 0 ? 16 : 7);
+      b.boost = Math.max(0, b.boost - dt * 2.5);
+      const target = phase === 'ready' ? 0 : Math.max(-0.5, Math.min(1.15, b.vy * 0.17));
+      b.rot += (target - b.rot) * Math.min(1, dt * 12);
+    });
+  }
+
+  // ---------- side panel ----------
+  const DX_TEXT = ['the pipe is right here', 'next pipe 7–15 ahead', 'next pipe 15–25 ahead', 'next pipe 25–37 ahead', 'next pipe 37 or more ahead'];
+  const VY_TEXT = ['rising fast', 'rising', 'at the top of its arc', 'falling', 'falling fast'];
+  function dyText(dy) {
+    const j = binOf(dy, DY_EDGES);
+    const lo = j === 0 ? -Infinity : DY_EDGES[j - 1], hi = j === DY_EDGES.length ? Infinity : DY_EDGES[j];
+    if (hi === Infinity) return 'the gap centre is more than ' + lo + ' below';
+    if (lo === -Infinity) return 'the gap centre is more than ' + (-hi) + ' above';
+    return hi <= 0 ? 'the gap centre is ' + (-hi) + '–' + (-lo) + ' above' : 'the gap centre is ' + lo + '–' + hi + ' below';
+  }
+  function describe(f) {
+    const t = DX_TEXT[binOf(f.dx, DX_EDGES)] + ', ' + dyText(f.dy) + ', ' + VY_TEXT[binOf(f.vy, VY_EDGES)] + '.';
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+
+  function overlayVisible() { return !!trainer && (showQ || phase === 'training'); }
+
+  let compassKey = '';
+  function renderCompass() {
+    const boxes = document.querySelectorAll('#compass .q');
+    const scene = phase === 'training' ? demo : (machine ? { course: course, bird: machine } : null);
+    let k = null, text = '', title = 'Q-values';
+    if (hoverCell) {
+      k = hoverCell.k; text = describe(hoverCell.f); title = 'Q-values in the cell you point at';
+    } else if (trainer && scene && scene.bird && !scene.bird.drop) {
+      const f = flapFeatures(scene.bird, scene.course);
+      k = flapEncode(f.dx, f.dy, f.vy); text = describe(f);
+      title = phase === 'training' ? 'Q-values of the practice bird' : 'Q-values of the machine\'s bird';
+    }
+    const row = k === null ? null : qRow(k);
+    const key = title + '|' + k + '|' + text + '|' + (row ? row.map(fmt).join(',') : '');
+    if (key === compassKey) return;
+    compassKey = key;
+    $('compass-title').textContent = title;
+    if (k === null) {
+      $('compass-center').textContent = '';
+      boxes.forEach(function (b) { b.querySelector('.qv').textContent = ''; b.classList.remove('best'); b.style.color = ''; });
+      $('compass-note').textContent = trainer ? 'The machine\'s bird is out of the race.' : '';
+      return;
+    }
+    if (!overlayVisible()) SCALE = buildScale();
+    const best = bestActions(row);
+    boxes.forEach(function (b) {
+      const a = Number(b.dataset.a);
+      b.querySelector('.qv').textContent = fmt(row[a]);
+      b.style.color = tintText(row[a]);
+      b.classList.toggle('best', best.indexOf(a) !== -1);
+    });
+    $('compass-center').textContent = 'state ' + k;
+    $('compass-note').textContent = text + ' The outlined value is the move it picks.';
+  }
+
+  function renderPolicyFacts(done) {
+    if (!trainer || !lastEval) {
+      $('fact-policy').textContent = '';
+      $('fact-training').textContent = '';
+      return;
+    }
+    $('fact-policy').textContent = 'On 8 test courses the greedy bird clears ' + lastEval.mean.toFixed(1) + ' pipes on average and reaches pipe ' + EVAL_CAP + ' on ' + lastEval.finished + ' of them.';
+    $('fact-training').textContent = (done ? 'Trained for ' : 'So far ') + count(Math.round(trainer.progress() * params.steps)) +
+      ' steps in ' + count(trainer.episodes()) + ' flights, visiting ' + trainer.visited() + ' of ' + FLAP_STATES + ' states.';
+  }
+
+  function renderStatus(title, html) {
+    $('status-title').textContent = title;
+    $('status-text').innerHTML = html;
+  }
+
+  function lastMoveText() {
+    if (!lastMachine) return '';
+    const name = FLAP_ACTIONS[lastMachine.a];
+    return lastMachine.kind === 'explore'
+      ? ' Its last move was ' + name + ', a random one (ε).'
+      : ' Its last move was ' + name + ', Q = ' + fmt(lastMachine.q) + '.';
+  }
+
+  function renderRace() {
+    $('pipes-human').textContent = human ? human.pipes : 0;
+    $('pipes-machine').textContent = machine ? machine.pipes : 0;
+    $('pipes-finish').textContent = FINISH;
+    $('flap-btn').disabled = phase !== 'race';
+    $('pause').disabled = phase !== 'race';
+    $('pause').textContent = paused ? 'Resume' : 'Pause';
+  }
+
+  function renderScore() {
+    $('score-human').textContent = score.human;
+    $('score-machine').textContent = score.machine;
+    $('score-draw').textContent = score.draw;
+  }
+
+  function showDock(which) {
+    docks.training.hidden = which !== 'training';
+    docks.ready.hidden = which !== 'ready';
+    docks.race.hidden = which !== 'race' && which !== 'over';
+    docks.over.hidden = which !== 'over';
+  }
+
+  function renderParams() {
+    const m = methodOf(params.method);
+    $('method').value = m.key;
+    $('method-info').textContent = m.info;
+    $('p-alpha').value = params.alpha;
+    $('p-gamma').value = params.gamma;
+    $('p-lambda').value = params.lambda;
+    $('p-steps').value = params.steps;
+    $('r-alive').value = params.rewards.alive;
+    $('r-pipe').value = params.rewards.pipe;
+    $('r-crash').value = params.rewards.crash;
+    $('field-lambda').hidden = m.key !== 'sarsa-lambda' && m.key !== 'q-lambda';
+    const spec = COURSES[courseKey];
+    $('course-info').textContent = 'Gaps are ' + spec.gap + ' units tall and ' + spec.spacing + ' apart; each gap moves up to ' + spec.shift +
+      ' from the last. The sky is ' + FLAP.H + ' tall. Changing the course retrains the bird for ' + count(spec.steps) + ' steps.';
+  }
+
+  // ---------- chart ----------
+  function drawChart() {
+    const svg = $('chart-svg');
+    svg.textContent = '';
+    const w = Math.max(200, svg.clientWidth || 320), h = 86, top = 8, bottom = 70, left = 38;
+    svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+    const x = function (p) { return left + p * (w - left); };
+    const y = function (v) { return bottom - v * (bottom - top); };
+    el('line', { class: 'axis', x1: left, y1: bottom, x2: w, y2: bottom }, svg);
+    el('line', { class: 'axis', x1: left, y1: top, x2: w, y2: top }, svg);
+    el('line', { class: 'eps-line', x1: x(EXPLORE_SHARE), y1: top, x2: x(EXPLORE_SHARE), y2: bottom }, svg);
+    const t100 = el('text', { x: left - 6, y: top + 4, 'text-anchor': 'end' }, svg); t100.textContent = String(EVAL_CAP);
+    const t0 = el('text', { x: left - 6, y: bottom + 4, 'text-anchor': 'end' }, svg); t0.textContent = '0';
+    const te = el('text', { x: x(EXPLORE_SHARE), y: h - 2, 'text-anchor': 'middle' }, svg); te.textContent = 'ε = 0';
+    const ts = el('text', { x: w, y: h - 2, 'text-anchor': 'end' }, svg); ts.textContent = 'all steps';
+    if (history.length < 2) return;
+    const pts = history.map(function (p) { return x(p.x).toFixed(1) + ',' + y(p.v).toFixed(1); });
+    el('polygon', { class: 'area', points: left + ',' + bottom + ' ' + pts.join(' ') + ' ' + x(history[history.length - 1].x).toFixed(1) + ',' + bottom }, svg);
+    el('polyline', { class: 'curve', points: pts.join(' ') }, svg);
+  }
+
+  // ---------- training ----------
+  function startDemo() {
+    demo = { course: makeCourse(COURSES[courseKey], newSeed()), bird: newBird('machine'), wait: 0 };
+  }
+
+  function demoTick() {
+    if (demo.wait > 0) {
+      if (--demo.wait === 0) startDemo();
+      return;
+    }
+    const ev = stepBird(demo.bird, policy(flapState(demo.bird, demo.course)), demo.course);
+    if (ev === 'crash') demo.wait = 26;
+    else if (demo.bird.pipes >= EVAL_CAP) startDemo();
+  }
+
+  function train() {
+    phase = 'training';
+    paused = false;
+    human = machine = null;
+    lastMachine = null;
+    result = null;
+    particles = []; floats = [];
+    trainer = createTrainer(makeFlappyEnv(COURSES[courseKey], params.rewards, Math.random, EPISODE_CAP), {
+      method: params.method, alpha: params.alpha, gamma: params.gamma, lambda: params.lambda,
+      steps: params.steps, rng: Math.random
+    });
+    lastEval = evaluate();
+    history = [{ x: 0, v: lastEval.mean / EVAL_CAP }];
+    startDemo();
+    showDock('training');
+    $('retrain').disabled = true;
+    $('train-label').textContent = 'Training with ' + methodOf(params.method).name;
+    drawChart();
+    renderRace();
+    if (reduceMotion) finishNow();
+  }
+
+  function trainFrame() {
+    const done = trainer.run(Math.ceil(params.steps / TRAIN_FRAMES));
+    lastEval = evaluate();
+    history.push({ x: trainer.progress(), v: lastEval.mean / EVAL_CAP });
+    const pct = Math.round(trainer.progress() * 100);
+    $('train-bar').style.width = pct + '%';
+    $('train-pct').textContent = pct + '%';
+    renderStatus('Training', methodOf(params.method).name + ', flight ' + count(trainer.episodes()) + ', ε = ' + trainer.epsilon().toFixed(2) + '. Above, the bird practises with what it knows so far.');
+    drawChart();
+    renderPolicyFacts(done);
+    if (done) finishTraining();
+  }
+
+  function finishNow() {
+    if (phase !== 'training' || !trainer) return;
+    trainer.run(params.steps);
+    lastEval = evaluate();
+    history.push({ x: 1, v: lastEval.mean / EVAL_CAP });
+    drawChart();
+    finishTraining();
+  }
+
+  function finishTraining() {
+    $('retrain').disabled = false;
+    $('train-bar').style.width = '100%';
+    renderPolicyFacts(true);
+    ready();
+  }
+
+  // ---------- race ----------
+  function ready(seed) {
+    phase = 'ready';
+    paused = false;
+    course = makeCourse(COURSES[courseKey], seed === undefined ? newSeed() : seed);
+    human = newBird('human');
+    machine = newBird('machine');
+    lastMachine = null;
+    result = null;
+    flapQueued = false;
+    particles = []; floats = [];
+    showDock('ready');
+    renderStatus('Ready', 'You are the <span class="tag human">blue</span> bird, the machine is the <span class="tag machine">yellow</span> one. Same pipes, same physics, ' + FINISH + ' pipes to the finish.');
+    renderRace();
+  }
+
+  function takeOff() {
+    if (phase !== 'ready') return;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    phase = 'race';
+    acc = 1 / SPEEDS[speedKey].hz;
+    flapQueued = true;
+    showDock('race');
+    renderStatus('Flying', 'Pipe 1 of ' + FINISH + '. Keep flapping.');
+    renderRace();
+  }
+
+  function stepBird(b, a, c) {
+    b.px = b.x; b.py = b.y;
+    const ev = flyStep(b, a, c);
+    b.trail.push({ x: b.x, y: b.y });
+    if (b.trail.length > TRAIL) b.trail.shift();
+    if (a === 1) { b.boost = 1; puff(b); }
+    if (ev === 'pipe') floatText(b, '+1');
+    if (ev === 'crash') {
+      burst(b);
+      b.drop = { y: b.y, vy: -14, rot: b.rot };
+      b.px = b.x; b.py = b.y;
+    }
+    return ev;
+  }
+
+  function crashText(b, c) {
+    const n = b.next + 1;
+    if (b.y <= FLAP.R + 1e-9) return 'flew into the ceiling before pipe ' + n;
+    if (b.y >= FLAP.H - FLAP.R - 1e-9) return 'hit the ground before pipe ' + n;
+    return hitsPipe(b, c.pipe(b.next), c.spec.gap) ? 'hit pipe ' + n : 'crashed at pipe ' + n;
+  }
+
+  function raceTick() {
+    const ah = flapQueued ? 1 : 0;
+    flapQueued = false;
+    const row = qRow(flapState(machine, course));
+    let am, kind;
+    if (Math.random() < raceEps) {
+      am = Math.random() < 0.5 ? 1 : 0;
+      kind = 'explore';
+    } else {
+      const set = bestActions(row);
+      am = set[Math.floor(Math.random() * set.length)];
+      kind = 'greedy';
+    }
+    lastMachine = { a: am, q: row[am], kind: kind };
+    const eh = stepBird(human, ah, course);
+    const em = stepBird(machine, am, course);
+    resolve(eh, em);
+  }
+
+  function resolve(eh, em) {
+    if (eh === 'crash' && em === 'crash') return finish('draw', 'You both crashed on the same tick: you ' + crashText(human, course) + ', the machine ' + crashText(machine, course) + '.');
+    if (eh === 'crash') return finish('machine', 'You ' + crashText(human, course) + ' while the machine was still flying.');
+    if (em === 'crash') return finish('human', 'The machine ' + crashText(machine, course) + '.');
+    if (human.pipes >= FINISH) return finish('draw', 'You both crossed the finish line.');
+    if (eh === 'pipe') {
+      renderRace();
+      renderStatus('Flying', 'Pipe ' + (human.pipes + 1) + ' of ' + FINISH + '.' + lastMoveText());
+    }
+  }
+
+  function finish(who, why) {
+    phase = 'over';
+    result = who;
+    score[who] += 1;
+    save();
+    renderScore();
+    renderRace();
+    [human, machine].forEach(function (b) { b.px = b.x; b.py = b.y; });
+    const title = who === 'draw' ? 'Draw' : who === 'human' ? 'You win' : 'The machine wins';
+    $('end-title').textContent = title;
+    renderStatus(title, why + lastMoveText());
+    showDock('over');
+    $('again').focus({ preventScroll: true });
+  }
+
+  function togglePause() {
+    if (phase !== 'race') return;
+    paused = !paused;
+    renderRace();
+    renderStatus(paused ? 'Paused' : 'Flying', paused ? 'Press P or Resume to carry on. The Q-values hold still while you read them.' : 'Pipe ' + (human.pipes + 1) + ' of ' + FINISH + '.');
+  }
+
+  function flapInput() {
+    if (phase === 'ready') takeOff();
+    else if (phase === 'race' && !paused) flapQueued = true;
+  }
+
+  // ---------- loop ----------
+  let lastT = performance.now();
+  function loop(now) {
+    const dt = Math.min(0.1, Math.max(0, (now - lastT) / 1000));
+    lastT = now;
+    clock += dt;
+    if (phase === 'training') trainFrame();
+    const period = 1 / SPEEDS[speedKey].hz;
+    let alpha = 1;
+    if ((phase === 'race' && !paused) || phase === 'training') {
+      acc += dt;
+      let n = 0;
+      while (acc >= period && n++ < 6) {
+        acc -= period;
+        if (phase === 'race') raceTick(); else if (phase === 'training') demoTick();
+        if (phase !== 'race' && phase !== 'training') break;
+      }
+      if (phase === 'race' || phase === 'training') alpha = Math.min(1, acc / period);
+    }
+    updateEffects(dt);
+    draw(alpha);
+    renderCompass();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- controls ----------
+  document.addEventListener('keydown', function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const tag = e.target && e.target.tagName;
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+    if (e.key === ' ' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+      e.preventDefault();
+      if (!e.repeat) flapInput();
+    } else if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') {
+      togglePause();
+    }
+  });
+
+  function toView(e) {
+    const r = cv.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * VIEW_W, y: (e.clientY - r.top) / r.height * VIEW_H };
+  }
+  cv.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    pointer = e.pointerType === 'mouse' ? toView(e) : null;
+    flapInput();
+  });
+  cv.addEventListener('pointermove', function (e) { pointer = e.pointerType === 'mouse' ? toView(e) : null; });
+  cv.addEventListener('pointerleave', function () { pointer = null; });
+
+  const flapBtn = $('flap-btn');
+  flapBtn.addEventListener('pointerdown', function (e) { e.preventDefault(); flapBtn.classList.add('held'); flapInput(); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (t) { flapBtn.addEventListener(t, function () { flapBtn.classList.remove('held'); }); });
+  flapBtn.addEventListener('click', function (e) { if (e.detail === 0) flapInput(); });
+
+  $('pause').addEventListener('click', togglePause);
+  $('take-off').addEventListener('click', takeOff);
+  $('new-course').addEventListener('click', function () { ready(); });
+  $('new-course-over').addEventListener('click', function () { ready(); });
+  $('again').addEventListener('click', function () { ready(course.seed); });
+  $('finish-now').addEventListener('click', finishNow);
+  $('retrain').addEventListener('click', train);
+  $('new-race').addEventListener('click', function () { if (phase !== 'training') ready(); });
+  $('reset-score').addEventListener('click', function () {
+    score.human = score.machine = score.draw = 0;
+    save();
+    renderScore();
+  });
+  document.addEventListener('visibilitychange', function () { if (document.hidden && phase === 'race' && !paused) togglePause(); });
+
+  function radios(containerId, name, options, current, onPick) {
+    const box = $(containerId);
+    Object.keys(options).forEach(function (key) {
+      const input = document.createElement('input');
+      input.type = 'radio';
+      input.name = name;
+      input.id = name + '-' + key;
+      input.value = key;
+      input.checked = key === current;
+      const label = document.createElement('label');
+      label.htmlFor = input.id;
+      label.textContent = options[key].name;
+      input.addEventListener('change', function () { if (input.checked) onPick(key); });
+      box.appendChild(input);
+      box.appendChild(label);
+    });
+  }
+  radios('course-picker', 'course', COURSES, courseKey, function (key) {
+    courseKey = key;
+    params.steps = COURSES[key].steps;
+    renderParams();
+    save();
+    train();
+  });
+  radios('speed-picker', 'speed', SPEEDS, speedKey, function (key) { speedKey = key; save(); });
+
+  const methodSel = $('method');
+  METHODS.forEach(function (m) {
+    const o = document.createElement('option');
+    o.value = m.key;
+    o.textContent = m.name;
+    methodSel.appendChild(o);
+  });
+  methodSel.addEventListener('change', function () {
+    params.method = methodSel.value;
+    renderParams();
+    save();
+    train();
+  });
+
+  function bindNumber(id, lo, hi, apply) {
+    const input = $(id);
+    input.addEventListener('change', function () {
+      const v = parseFloat(input.value);
+      if (!isFinite(v) || v < lo || v > hi) { renderParams(); return; }
+      apply(v);
+      renderParams();
+      save();
+      train();
+    });
+  }
+  bindNumber('p-alpha', 0.01, 1, function (v) { params.alpha = v; });
+  bindNumber('p-gamma', 0, 0.999, function (v) { params.gamma = v; });
+  bindNumber('p-lambda', 0, 1, function (v) { params.lambda = v; });
+  bindNumber('p-steps', 1000, 5000000, function (v) { params.steps = Math.round(v); });
+  bindNumber('r-alive', -1e6, 1e6, function (v) { params.rewards.alive = v; });
+  bindNumber('r-pipe', -1e6, 1e6, function (v) { params.rewards.pipe = v; });
+  bindNumber('r-crash', -1e6, 1e6, function (v) { params.rewards.crash = v; });
+
+  const showQEl = $('show-q');
+  showQEl.checked = showQ;
+  showQEl.addEventListener('change', function () { showQ = showQEl.checked; save(); });
+
+  const epsEl = $('eps');
+  function renderEps() { $('eps-out').textContent = 'ε = ' + raceEps.toFixed(2); }
+  epsEl.value = String(raceEps);
+  epsEl.addEventListener('input', function () { raceEps = parseFloat(epsEl.value); renderEps(); save(); });
+
+  // ---------- boot ----------
+  $('state-count').textContent = FLAP_STATES;
+  if (window.ResizeObserver) new ResizeObserver(function () { if (Math.round(cv.clientWidth * Math.min(2.5, window.devicePixelRatio || 1)) !== cv.width) resize(); }).observe(cv);
+  resize();
+  renderEps();
+  renderScore();
+  renderParams();
+  train();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
