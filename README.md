@@ -1,5 +1,5 @@
 ## Reinforcement Learning
-Solving Games (Breakout; Checkers; Dino Runner; Flappy Birds; Gridworld; Pong; Racetrack; Tic-Tac-Toe) using Tabular Reinforcement Learning Techniques. Checkers uses DRL.
+Solving Games (Breakout; Checkers; Dino Runner; Flappy Birds; Gridworld; Pong; Racetrack; Tic-Tac-Toe) using Tabular Reinforcement Learning Techniques. **Checkers uses DRL**.
 
 Download all files to your machine, then:
 
